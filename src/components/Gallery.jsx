@@ -1,44 +1,40 @@
 import { useRef } from 'react'
-import { motion, useInView, useScroll, useTransform } from 'framer-motion'
+import { motion, useInView } from 'framer-motion'
+import { asset } from '../utils'
 
 const PHOTOS = [
-  { src: '/images/IMG_7257.JPG', alt: '메인 코트', size: 'large' },
-  { src: '/images/IMG_7258.JPG', alt: '코트 전경', size: 'small' },
-  { src: '/images/IMG_7259.JPG', alt: '골대', size: 'small' },
-  { src: '/images/IMG_7260.JPG', alt: '3점 라인', size: 'large' },
-  { src: '/images/IMG_7261.JPG', alt: '사이드라인', size: 'small' },
-  { src: '/images/IMG_7262.JPG', alt: '시설 내부', size: 'small' },
-  { src: '/images/IMG_7263.JPG', alt: '대기 공간', size: 'large' },
+  { src: asset('/images/IMG_7257.webp'), alt: '메인 코트', size: 'large' },
+  { src: asset('/images/IMG_7258.webp'), alt: '코트 전경', size: 'small' },
+  { src: asset('/images/IMG_7259.webp'), alt: '골대', size: 'small' },
+  { src: asset('/images/IMG_7260.webp'), alt: '3점 라인', size: 'large' },
+  { src: asset('/images/IMG_7261.webp'), alt: '사이드라인', size: 'small' },
+  { src: asset('/images/IMG_7262.webp'), alt: '시설 내부', size: 'small' },
+  { src: asset('/images/IMG_7263.webp'), alt: '대기 공간', size: 'large' },
 ]
 
-function ParallaxImage({ photo, index }) {
+function PhotoCard({ photo, index }) {
   const ref = useRef(null)
-  const inView = useInView(ref, { once: true, margin: '-10%' })
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
-  const y = useTransform(scrollYProgress, [0, 1], [40, -40])
+  const inView = useInView(ref, { once: true, margin: '-8%' })
 
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 60 }}
+      initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 1, delay: (index % 2) * 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className={`relative overflow-hidden group ${
-        photo.size === 'large'
-          ? 'col-span-2 aspect-[16/9]'
-          : 'col-span-1 aspect-[4/5]'
+      transition={{ duration: 0.9, delay: (index % 3) * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className={`relative overflow-hidden group bg-[#0D1B2A] ${
+        photo.size === 'large' ? 'col-span-2 aspect-[16/9]' : 'col-span-1 aspect-[4/5]'
       }`}
     >
-      <motion.img
-        style={{ y }}
+      <img
         src={photo.src}
         alt={photo.alt}
-        className="w-full h-[110%] object-cover -mt-[5%] transition-transform duration-700 group-hover:scale-105"
+        loading="lazy"
+        decoding="async"
+        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
       />
-      {/* Subtle hover overlay */}
-      <div className="absolute inset-0 bg-[#080F1E]/0 group-hover:bg-[#080F1E]/20 transition-colors duration-500" />
-      {/* Caption */}
-      <div className="absolute bottom-0 left-0 right-0 p-5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-400">
+      <div className="absolute inset-0 bg-[#080F1E]/0 group-hover:bg-[#080F1E]/25 transition-colors duration-500" />
+      <div className="absolute bottom-0 left-0 right-0 p-5 translate-y-3 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-400">
         <span className="text-[11px] text-white tracking-[0.3em] uppercase">{photo.alt}</span>
       </div>
     </motion.div>
@@ -51,7 +47,6 @@ export default function Gallery() {
 
   return (
     <section id="gallery" className="py-24 md:py-36">
-      {/* Section label */}
       <div ref={titleRef} className="px-6 md:px-10 mb-12 flex items-end justify-between">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -66,7 +61,6 @@ export default function Gallery() {
             시설 갤러리
           </h2>
         </motion.div>
-
         <motion.p
           initial={{ opacity: 0 }}
           animate={titleInView ? { opacity: 1 } : {}}
@@ -77,10 +71,9 @@ export default function Gallery() {
         </motion.p>
       </div>
 
-      {/* Full-width photo grid */}
       <div className="px-6 md:px-10 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
         {PHOTOS.map((photo, i) => (
-          <ParallaxImage key={photo.src} photo={photo} index={i} />
+          <PhotoCard key={photo.src} photo={photo} index={i} />
         ))}
       </div>
     </section>

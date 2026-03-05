@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { asset } from '../utils'
 import { motion, useScroll, useTransform } from 'framer-motion'
 
 const NAVER_RESERVATION_URL = 'https://m.place.naver.com/place/2000567383/home?fbclid=PAVERFWAQWgBRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAafIHHcl87dVwQuilCfNvyWJsEYSEOTCnUpGlMMc_sPuZYblnNo6CwihC974Pg_aem_XkDQvDpwu6jDwonjTX6kxw'
@@ -21,7 +22,7 @@ export default function Hero() {
         className="absolute inset-0 w-full h-[115%] -top-[7.5%]"
       >
         <img
-          src="/images/IMG_7256.JPG"
+          src={asset('/images/IMG_7256.webp')}
           alt="GRIT LAB"
           className="w-full h-full object-cover"
         />
