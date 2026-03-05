@@ -5,14 +5,14 @@ import { motion, useInView } from 'framer-motion'
 const VIDEOS = [
   {
     src: asset('/videos/gritlab1.MP4'),
-    poster: asset('/images/IMG_7257.webp'),
+    poster: asset('/images/IMG_7257v2.webp'),
     label: '01',
     title: 'GRIT LAB 코트',
     desc: '경기도 화성시 동탄의 프리미엄 농구 코트',
   },
   {
     src: asset('/videos/gritlab2.MP4'),
-    poster: asset('/images/IMG_7260.webp'),
+    poster: asset('/images/IMG_7260v2.webp'),
     label: '02',
     title: 'SLOW GRIND',
     desc: '꾸준한 훈련이 만드는 차이',
