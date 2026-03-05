@@ -5,11 +5,11 @@ import { asset } from '../utils'
 const PHOTOS = [
   { src: asset('/images/IMG_7257.webp'), alt: '메인 코트', size: 'large' },
   { src: asset('/images/IMG_7258.webp'), alt: '코트 전경', size: 'small' },
-  { src: asset('/images/IMG_7259.webp'), alt: '골대', size: 'small' },
+  { src: asset('/images/IMG_7259.webp'), alt: '체육관 입구', size: 'small' },
   { src: asset('/images/IMG_7260.webp'), alt: '3점 라인', size: 'large' },
-  { src: asset('/images/IMG_7261.webp'), alt: '사이드라인', size: 'small' },
-  { src: asset('/images/IMG_7262.webp'), alt: '시설 내부', size: 'small' },
-  { src: asset('/images/IMG_7263.webp'), alt: '대기 공간', size: 'large' },
+  { src: asset('/images/IMG_7261.webp'), alt: '공용시설', size: 'small' },
+  { src: asset('/images/IMG_7262.webp'), alt: '공용 시설', size: 'small' },
+  { src: asset('/images/IMG_7263.webp'), alt: '대기공간 및 체육관전경', size: 'large' },
 ]
 
 function PhotoCard({ photo, index }) {
