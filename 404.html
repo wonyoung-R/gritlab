@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>GRIT LAB</title>
+    <script>
+        // GitHub Pages SPA 라우팅 트릭
+        // 404가 발생하면 이 페이지로 오는데, 현재 경로를 쿼리스트링으로 인코딩해서 index.html로 보냄
+        var l = window.location;
+        l.replace(
+            l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+            l.pathname.split('/').slice(0, 1).join('/') +
+            '/?p=' + encodeURIComponent(l.pathname + l.search) +
+            l.hash
+        );
+    </script>
+</head>
+
+<body></body>
+
+</html>

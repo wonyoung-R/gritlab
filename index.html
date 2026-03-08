@@ -1,17 +1,31 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GRIT LAB — SLOW GRIND</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-0nvDrOK8.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CHgpt_Du.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GRIT LAB — SLOW GRIND</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <!-- GitHub Pages SPA 라우팅 복원 스크립트 -->
+  <script>
+    (function () {
+      var p = window.location.search.match(/p=([^&]*)/);
+      if (p) {
+        p = decodeURIComponent(p[1]);
+        window.history.replaceState(null, null, p + (window.location.hash || ''));
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-0nvDrOK8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CHgpt_Du.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
 </html>
