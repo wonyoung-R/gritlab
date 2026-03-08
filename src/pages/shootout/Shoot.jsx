@@ -92,6 +92,14 @@ export default function ShootPage() {
 
     return (
         <>
+            {/* 📱 모바일 가로 회전 방지 */}
+            <div className={styles.rotatePrompt}>
+                <div className={styles.rotateIcon}>📱</div>
+                <p>세로로 돌려주세요!</p>
+                <p style={{ fontSize: '14px', color: '#888', fontWeight: 400 }}>
+                    이 페이지는 세로 모드에서만 사용 가능합니다.
+                </p>
+            </div>
             <div className="bg-container">
                 <div className="bg-image"></div>
                 <div className="moving-text-container">

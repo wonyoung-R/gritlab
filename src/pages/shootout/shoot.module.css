@@ -1,3 +1,50 @@
+/* ─────────────────────────────────────
+   가로 모드 강제 회전 안내 (모바일)
+───────────────────────────────────── */
+.rotatePrompt {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    gap: 20px;
+}
+
+.rotateIcon {
+    font-size: 64px;
+    animation: rotateAnim 1.2s infinite ease-in-out;
+}
+
+@keyframes rotateAnim {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    50% {
+        transform: rotate(-90deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+    .rotatePrompt {
+        display: flex;
+    }
+}
+
+/* ─────────────────────────────────────
+   위험 오버레이 (타이머 5초 이하)
+───────────────────────────────────── */
 .dangerOverlay {
     position: fixed;
     top: 0;
@@ -20,6 +67,9 @@
     }
 }
 
+/* ─────────────────────────────────────
+   레이아웃 기본
+───────────────────────────────────── */
 .main {
     max-width: 1200px;
     margin: 0 auto;
@@ -83,6 +133,9 @@
     opacity: 0.9;
 }
 
+/* ─────────────────────────────────────
+   랙 그리드 (데스크탑)
+───────────────────────────────────── */
 .racksGrid {
     display: flex;
     flex-direction: column;
@@ -128,34 +181,50 @@
     font-weight: 700;
 }
 
+/* ─────────────────────────────────────
+   타이머 버튼 (데스크탑 + 공통)
+───────────────────────────────────── */
 .timerStartBtn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: #333;
+    gap: 10px;
+    background: #222;
     color: #ddd;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 16px;
+    padding: 14px 28px;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    border: 2px solid #444;
     transition: all 0.2s;
+    min-width: 180px;
+    justify-content: center;
+}
+
+.timerStartBtn:hover {
+    background: #333;
+    border-color: #666;
+    transform: scale(1.03);
 }
 
 .timerStartBtn.running {
     background: var(--fail);
+    border-color: var(--fail);
     color: #fff;
 }
 
 .timerStartBtn.critical {
     background: #FF0000;
+    border-color: #FF0000;
     color: #fff;
     animation: pulse 0.5s infinite alternate;
-    box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
 }
 
 .timerStartBtn.finished {
-    background: #555;
-    color: #999;
+    background: #333;
+    border-color: #555;
+    color: #888;
 }
 
 @keyframes pulse {
@@ -164,10 +233,13 @@
     }
 
     100% {
-        transform: scale(1.05);
+        transform: scale(1.06);
     }
 }
 
+/* ─────────────────────────────────────
+   공 행 (데스크탑)
+───────────────────────────────────── */
 .ballsRow {
     display: flex;
     gap: 24px;
@@ -188,12 +260,12 @@
     border: none;
     background: transparent;
     padding: 0;
-    transition: transform 0.2s;
+    transition: transform 0.15s;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
 .ball:hover {
-    transform: scale(1.05);
+    transform: scale(1.07);
 }
 
 .ball:active {
@@ -217,7 +289,6 @@
     display: block;
     object-fit: contain;
     mix-blend-mode: screen;
-    /* Removes the pure black background from AI generated image */
 }
 
 .successOverlay,
@@ -237,29 +308,27 @@
 
 .successOverlay {
     background: rgba(255, 255, 255, 0.15);
-    /* elegant white glow */
     border: 3px solid rgba(255, 255, 255, 0.7);
     backdrop-filter: brightness(1.2) contrast(1.1);
-    /* subtle enhancement */
 }
 
 .failOverlay {
     background: rgba(15, 23, 42, 0.75);
-    /* Dark Navy overlay */
     border: 2px solid rgba(15, 23, 42, 0.9);
     color: rgba(255, 255, 255, 0.8);
 }
 
 .successValue {
     box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
-    /* white glowing aura */
     transform: scale(1.05);
 }
 
-/* Air Command popup */
+/* ─────────────────────────────────────
+   Air Command 팝업
+───────────────────────────────────── */
 .airCommand {
     position: absolute;
-    top: -60px;
+    top: -68px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -288,8 +357,8 @@
 .airSuccess,
 .airFail,
 .airUndo {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     font-size: 14px;
     font-weight: 700;
@@ -313,25 +382,102 @@
     color: white;
 }
 
-@media (max-width: 768px) {
-    .ball {
-        width: 56px;
-        height: 56px;
-        font-size: 18px;
+/* ─────────────────────────────────────
+   📱 모바일 (세로 전용)
+───────────────────────────────────── */
+@media (max-width: 768px) and (orientation: portrait) {
+
+    .main {
+        padding: 12px;
     }
 
-    .ballsRow {
+    .header {
+        flex-wrap: wrap;
         gap: 10px;
+        margin-bottom: 20px;
+        padding-bottom: 14px;
     }
 
+    .playerInfo h2 {
+        font-size: 20px;
+    }
+
+    .saveBtn {
+        font-size: 13px;
+        padding: 8px 14px;
+    }
+
+    /* 각 랙 카드: 세로 배치 */
+    .rackCard {
+        padding: 16px 0;
+        gap: 14px;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* 랙 제목 + 타이머를 같은 줄에 */
+    .rackContent {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    /* 좌측 패널 (제목 + 타이머) */
+    .rackLeft {
+        min-width: unset;
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .rackLeft h3 {
+        font-size: 15px;
+        color: #bbb;
+    }
+
+    /* 타이머 버튼 — 모바일: 독립적, 크게 */
+    .timerStartBtn {
+        font-size: 20px;
+        padding: 12px 22px;
+        border-radius: 12px;
+        min-width: unset;
+        flex-shrink: 0;
+        gap: 8px;
+    }
+
+    /* 공 그리드 — 3열 배치 */
+    .ballsRow {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        justify-items: center;
+        flex: unset;
+    }
+
+    /* 공 크기 */
+    .ball {
+        width: 80px;
+        height: 80px;
+    }
+
+    /* Air Command — 공 위쪽 (모바일에서 손에 가리지 않도록) */
     .airCommand {
-        top: -56px;
+        top: -68px;
+        padding: 6px;
+        gap: 6px;
     }
 
     .airSuccess,
     .airFail,
     .airUndo {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
+        font-size: 13px;
+    }
+
+    .successOverlay,
+    .failOverlay {
+        font-size: 40px;
     }
 }

@@ -28,7 +28,7 @@ const generateInitialRacks = () => {
     return racks;
 };
 
-const initialPlayers = Array.from({ length: 20 }).map((_, i) => ({
+const initialPlayers = Array.from({ length: 5 }).map((_, i) => ({
     id: `p${i + 1}`,
     name: `참가자 ${i + 1}`,
     racks: generateInitialRacks(),
