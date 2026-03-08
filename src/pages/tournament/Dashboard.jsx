@@ -104,7 +104,7 @@ export default function TournamentDashboard() {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
-        window.location.href = 'https://www.grit-lab.kr';
+        window.location.href = 'https://grit-lab.kr';
     };
 
     return (
