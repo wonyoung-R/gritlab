@@ -1,0 +1,337 @@
+.dangerOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 0, 0, 0.5);
+    z-index: 9999;
+    pointer-events: none;
+    animation: blinkWarning 0.5s infinite alternate;
+}
+
+@keyframes blinkWarning {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+
+.backBtn {
+    color: #888;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.backBtn:hover {
+    background: #222;
+    color: #fff;
+}
+
+.playerInfo {
+    text-align: center;
+    flex: 1;
+}
+
+.playerInfo h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.scoreBadge {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.saveBtn {
+    background: var(--success);
+    color: #fff;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    transition: opacity 0.2s;
+}
+
+.saveBtn:hover {
+    opacity: 0.9;
+}
+
+.racksGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.rackCard {
+    background: transparent;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0;
+    padding: 24px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.rackCard:last-child {
+    border-bottom: none;
+}
+
+.rackHeader {
+    display: none;
+}
+
+.rackContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.rackLeft {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+    min-width: 250px;
+}
+
+.rackLeft h3 {
+    font-size: 20px;
+    color: #ddd;
+    font-weight: 700;
+}
+
+.timerStartBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #333;
+    color: #ddd;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.timerStartBtn.running {
+    background: var(--fail);
+    color: #fff;
+}
+
+.timerStartBtn.critical {
+    background: #FF0000;
+    color: #fff;
+    animation: pulse 0.5s infinite alternate;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+}
+
+.timerStartBtn.finished {
+    background: #555;
+    color: #999;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+
+    100% {
+        transform: scale(1.05);
+    }
+}
+
+.ballsRow {
+    display: flex;
+    gap: 24px;
+    justify-content: flex-end;
+    align-items: center;
+    position: relative;
+    flex: 1;
+}
+
+.ballContainer {
+    position: relative;
+}
+
+.ball {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    padding: 0;
+    transition: transform 0.2s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.ball:hover {
+    transform: scale(1.05);
+}
+
+.ball:active {
+    transform: scale(0.85) !important;
+}
+
+.basketballWrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.basketballImg {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: block;
+    object-fit: contain;
+    mix-blend-mode: screen;
+    /* Removes the pure black background from AI generated image */
+}
+
+.successOverlay,
+.failOverlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 52px;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
+.successOverlay {
+    background: rgba(255, 255, 255, 0.15);
+    /* elegant white glow */
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    backdrop-filter: brightness(1.2) contrast(1.1);
+    /* subtle enhancement */
+}
+
+.failOverlay {
+    background: rgba(15, 23, 42, 0.75);
+    /* Dark Navy overlay */
+    border: 2px solid rgba(15, 23, 42, 0.9);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.successValue {
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
+    /* white glowing aura */
+    transform: scale(1.05);
+}
+
+/* Air Command popup */
+.airCommand {
+    position: absolute;
+    top: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    background: #111;
+    padding: 8px;
+    border-radius: 30px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+    border: 1px solid #444;
+    z-index: 100;
+    animation: popIn 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+@keyframes popIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 10px) scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+    }
+}
+
+.airSuccess,
+.airFail,
+.airUndo {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.airSuccess {
+    background: var(--success);
+    color: white;
+}
+
+.airFail {
+    background: var(--fail);
+    color: white;
+}
+
+.airUndo {
+    background: #555;
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .ball {
+        width: 56px;
+        height: 56px;
+        font-size: 18px;
+    }
+
+    .ballsRow {
+        gap: 10px;
+    }
+
+    .airCommand {
+        top: -56px;
+    }
+
+    .airSuccess,
+    .airFail,
+    .airUndo {
+        width: 40px;
+        height: 40px;
+    }
+}

@@ -18,6 +18,7 @@ export default function Navbar() {
     { label: 'Videos', href: '#videos' },
     { label: 'Pricing', href: '#pricing' },
     { label: 'Location', href: '#location' },
+    { label: 'Records', href: '/records' },
   ]
 
   return (
@@ -25,9 +26,8 @@ export default function Navbar() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 1, delay: 0.5 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ${
-        scrolled ? 'bg-[#080F1E]/80 backdrop-blur-md' : 'bg-transparent'
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ${scrolled ? 'bg-[#080F1E]/80 backdrop-blur-md' : 'bg-transparent'
+        }`}
     >
       <div className="px-6 md:px-10 flex items-center justify-between h-14 md:h-16">
         {/* Logo */}

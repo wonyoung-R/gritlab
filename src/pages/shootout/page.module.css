@@ -1,0 +1,183 @@
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.5px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.summary {
+  font-size: 16px;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.resetBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ef4444;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  transition: all 0.2s;
+}
+
+.resetBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.playerList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.playerCard {
+  display: grid;
+  grid-template-columns: 40px 60px 1fr 100px 140px;
+  align-items: center;
+  gap: 20px;
+  background: var(--surface);
+  padding: 16px 24px;
+  border-radius: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid #333;
+}
+
+.playerCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  border-color: #444;
+}
+
+.playerCard.completed {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.rank {
+  font-size: 20px;
+  font-weight: 800;
+  color: #555;
+}
+
+.playerCard.completed .rank {
+  color: var(--success);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iconBtn {
+  color: #888;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: #333;
+  color: #fff;
+}
+
+.iconBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nameInput {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.nameInput:focus {
+  background: rgba(255, 255, 255, 0.05);
+  outline: 1px solid var(--primary);
+}
+
+.scoreContainer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.score {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.score span {
+  font-size: 14px;
+  color: #888;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.pending {
+  font-size: 14px;
+  color: #666;
+  font-weight: 600;
+}
+
+.shootBtn {
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  transition: opacity 0.2s;
+}
+
+.shootBtn:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .playerCard {
+    grid-template-columns: 30px 40px 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px;
+  }
+
+  .scoreContainer {
+    grid-column: 1 / 3;
+    justify-content: flex-start;
+  }
+
+  .shootBtn {
+    grid-column: 3;
+  }
+}
