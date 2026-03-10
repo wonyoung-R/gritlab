@@ -44,13 +44,8 @@ export default function Pricing() {
           animate={titleInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8 }}
         >
-          <p className="text-[11px] text-white/30 tracking-[0.35em] uppercase mb-3">Pricing</p>
-          <h2
-            className="font-anton text-white leading-none tracking-[0.04em]"
-            style={{ fontSize: 'clamp(3rem, 8vw, 8rem)' }}
-          >
-            대관 요금
-          </h2>
+          <p className="text-[16px] text-white/30 tracking-[0.35em] uppercase mb-3">Pricing</p>
+
           <p className="text-[12px] text-white/30 mt-3 tracking-wide">
             단독 전체 코트 대관 · 30분 단위 · 인원 제한 없음
           </p>

@@ -70,9 +70,9 @@ export default function Hero() {
                 href={NAVER_RESERVATION_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 px-7 py-3.5 border border-white/30 hover:border-white text-white text-[11px] tracking-[0.3em] uppercase rounded-full transition-all duration-500 hover:bg-white hover:text-[#080F1E] group"
+                className="inline-flex items-center gap-3 px-8 py-4 border-2 border-[#03C75A] text-[#03C75A] bg-[#03C75A]/10 hover:bg-[#03C75A] hover:text-white text-[12px] tracking-[0.3em] font-bold uppercase rounded-full transition-all duration-500 hover:shadow-[0_0_25px_rgba(3,199,90,0.5)] group"
               >
-                코트 대관 예약
+                네이버 코트 예약
                 <span className="transition-transform duration-300 group-hover:translate-x-1">↗</span>
               </a>
             </motion.div>
@@ -83,12 +83,17 @@ export default function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.7 }}
-            className="md:text-right md:max-w-xs"
+            className="md:text-right flex flex-col items-start md:items-end w-full md:max-w-xs"
           >
-            <p className="font-anton text-4xl md:text-5xl tracking-[0.08em] text-white/90 mb-3">
-              SLOW<br />GRIND
-            </p>
-            <p className="text-[12px] text-white/40 leading-relaxed tracking-wide">
+            <div className="font-anton text-4xl md:text-5xl text-white/90 mb-4 flex flex-col gap-1 w-full max-w-[150px] md:max-w-[190px]">
+              <div className="flex justify-between w-full tracking-wider">
+                <span>S</span><span>L</span><span>O</span><span>W</span>
+              </div>
+              <div className="flex justify-between w-full tracking-wider">
+                <span>G</span><span>R</span><span>I</span><span>N</span><span>D</span>
+              </div>
+            </div>
+            <p className="text-[12px] text-white/40 leading-relaxed tracking-wide text-left md:text-right">
               꾸준히, 묵묵히.<br />
               당신만의 코트에서 시작하세요.
             </p>

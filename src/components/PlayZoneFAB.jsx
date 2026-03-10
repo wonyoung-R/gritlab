@@ -33,7 +33,7 @@ export default function PlayZoneFAB() {
     };
 
     return (
-        <div className="fixed bottom-6 right-6 md:top-1/2 md:-translate-y-1/2 md:bottom-auto z-[9999] flex flex-col items-end pointer-events-none">
+        <div className="fixed bottom-[280px] right-6 md:top-auto md:bottom-[240px] md:right-10 z-[9999] flex flex-col items-end pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-end">
                 <AnimatePresence>
                     {isOpen && (

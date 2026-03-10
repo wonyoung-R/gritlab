@@ -22,9 +22,8 @@ function PhotoCard({ photo, index }) {
       initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.9, delay: (index % 3) * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className={`relative overflow-hidden group bg-[#0D1B2A] ${
-        photo.size === 'large' ? 'col-span-2 aspect-[16/9]' : 'col-span-1 aspect-[4/5]'
-      }`}
+      className={`relative overflow-hidden group bg-[#0D1B2A] ${photo.size === 'large' ? 'col-span-2 aspect-[16/9]' : 'col-span-1 aspect-[4/5]'
+        }`}
     >
       <img
         src={photo.src}
@@ -53,13 +52,8 @@ export default function Gallery() {
           animate={titleInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8 }}
         >
-          <p className="text-[11px] text-white/30 tracking-[0.35em] uppercase mb-3">Facility</p>
-          <h2
-            className="font-anton text-white leading-none tracking-[0.04em]"
-            style={{ fontSize: 'clamp(3rem, 8vw, 8rem)' }}
-          >
-            시설 갤러리
-          </h2>
+          <p className="text-[16px] text-white/30 tracking-[0.35em] uppercase mb-3">Facility</p>
+
         </motion.div>
         <motion.p
           initial={{ opacity: 0 }}

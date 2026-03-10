@@ -54,9 +54,9 @@ export default function Navbar() {
             href={NAVER_RESERVATION_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-white/50 hover:text-white tracking-[0.25em] uppercase transition-colors duration-300"
+            className="px-5 py-2.5 border border-[#03C75A] text-[#03C75A] hover:bg-[#03C75A] hover:text-white text-[11px] tracking-[0.25em] font-bold uppercase rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(3,199,90,0.1)] hover:shadow-[0_0_20px_rgba(3,199,90,0.4)]"
           >
-            예약하기 ↗
+            네이버 예약하기 ↗
           </a>
         </div>
 
@@ -96,9 +96,9 @@ export default function Navbar() {
               href={NAVER_RESERVATION_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="block mt-4 py-3 text-[11px] text-white/50 hover:text-white tracking-[0.25em] uppercase transition-colors"
+              className="block mt-4 py-3 px-4 border border-[#03C75A] text-[#03C75A] hover:bg-[#03C75A] hover:text-white text-[12px] font-bold text-center tracking-[0.25em] uppercase transition-all duration-300 rounded-lg shadow-[0_0_10px_rgba(3,199,90,0.1)]"
             >
-              예약하기 ↗
+              네이버 예약하기 ↗
             </a>
           </motion.div>
         )}
