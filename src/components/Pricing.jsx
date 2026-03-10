@@ -58,9 +58,9 @@ export default function Pricing() {
           href={NAVER_RESERVATION_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-3 px-7 py-3.5 border border-white/25 hover:border-white text-white text-[11px] tracking-[0.3em] uppercase rounded-full transition-all duration-500 hover:bg-white hover:text-[#080F1E] group self-start md:self-auto"
+          className="inline-flex items-center gap-3 px-8 py-4 border-2 border-[#03C75A] text-[#03C75A] bg-[#03C75A]/10 hover:bg-[#03C75A] hover:text-white text-[12px] tracking-[0.3em] font-bold uppercase rounded-full transition-all duration-500 hover:shadow-[0_0_25px_rgba(3,199,90,0.5)] group self-start md:self-auto"
         >
-          예약하기
+          네이버 예약하기
           <span className="transition-transform duration-300 group-hover:translate-x-1">↗</span>
         </motion.a>
       </div>
