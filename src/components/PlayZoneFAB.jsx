@@ -33,7 +33,7 @@ export default function PlayZoneFAB() {
     };
 
     return (
-        <div className="fixed bottom-[280px] right-6 md:top-auto md:bottom-[240px] md:right-10 z-[9999] flex flex-col items-end pointer-events-none">
+        <div className="fixed bottom-6 right-4 scale-[0.8] origin-bottom-right md:scale-100 md:top-auto md:bottom-[240px] md:right-10 z-[9999] flex flex-col items-end pointer-events-none transition-all duration-500">
             <div className="pointer-events-auto flex flex-col items-end">
                 <AnimatePresence>
                     {isOpen && (
@@ -109,7 +109,10 @@ export default function PlayZoneFAB() {
 
                     {/* Pulse effect when closed */}
                     {!isOpen && (
-                        <div className="absolute inset-0 rounded-full animate-ping bg-orange-400/35 opacity-75 pointer-events-none group-hover:animate-none" />
+                        <div
+                            className="absolute inset-0 rounded-full animate-ping bg-orange-400/35 opacity-75 pointer-events-none group-hover:animate-none"
+                            style={{ animationDuration: '3s' }}
+                        />
                     )}
                 </button>
             </div>
