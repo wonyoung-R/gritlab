@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Trophy, Clock, Target, X } from 'lucide-react';
+import { Clock, Target, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function PlayZoneFAB() {
@@ -65,16 +65,6 @@ export default function PlayZoneFAB() {
                                 </div>
                             </button>
 
-                            {/* Monthly Ranking (Tournament Admin) */}
-                            <button
-                                onClick={() => handleNavigate('/tournament/admin')}
-                                className="flex items-center gap-3 bg-[#0f172a] text-white px-5 py-3 rounded-full shadow-lg border border-white/10 hover:bg-[#1e293b] transition-colors group"
-                            >
-                                <span className="font-bold text-sm">월간 챌린지 (대회방)</span>
-                                <div className="bg-yellow-500/20 p-2 rounded-full group-hover:bg-yellow-500/40 transition-colors">
-                                    <Trophy size={16} className="text-yellow-400" />
-                                </div>
-                            </button>
                         </motion.div>
                     )}
                 </AnimatePresence>

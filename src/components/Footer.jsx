@@ -1,9 +1,10 @@
-import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 
 const INSTAGRAM_URL = 'https://www.instagram.com/grit_lab_basketball?igsh=YmdybXcxcnRsb2I='
 const NAVER_RESERVATION_URL = 'https://m.place.naver.com/place/2000567383/home?fbclid=PAVERFWAQWgBRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAafIHHcl87dVwQuilCfNvyWJsEYSEOTCnUpGlMMc_sPuZYblnNo6CwihC974Pg_aem_XkDQvDpwu6jDwonjTX6kxw'
 
 export default function Footer() {
+  const navigate = useNavigate()
   return (
     <footer className="border-t border-white/8">
       {/* Footer bottom */}
@@ -39,6 +40,12 @@ export default function Footer() {
           >
             네이버예약 ↗
           </a>
+          <button
+            onClick={() => navigate('/tournament/admin')}
+            className="text-[11px] text-white/15 hover:text-white/40 tracking-[0.25em] uppercase transition-colors"
+          >
+            Grit Admin
+          </button>
         </div>
       </div>
 
