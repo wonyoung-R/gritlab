@@ -43,12 +43,12 @@ export default function PlayZoneFAB() {
                             exit={{ opacity: 0, y: 20, scale: 0.8 }}
                             className="mb-4 flex flex-col gap-3"
                         >
-                            {/* 3v3 Scoreboard (Future) */}
+                            {/* 3v3 Scoreboard */}
                             <button
-                                onClick={() => alert("3:3 라이브 전광판은 준비 중입니다!")}
+                                onClick={() => handleNavigate('/threevthree')}
                                 className="flex items-center gap-3 bg-[#0f172a] text-white px-5 py-3 rounded-full shadow-lg border border-white/10 hover:bg-[#1e293b] transition-colors group"
                             >
-                                <span className="font-bold text-sm">3:3 전광판 <span className="text-xs text-gray-400 font-normal ml-1">(준비중)</span></span>
+                                <span className="font-bold text-sm">3:3 전광판</span>
                                 <div className="bg-blue-500/20 p-2 rounded-full group-hover:bg-blue-500/40 transition-colors">
                                     <Clock size={16} className="text-blue-400" />
                                 </div>

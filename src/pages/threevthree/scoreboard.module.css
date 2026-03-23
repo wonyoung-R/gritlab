@@ -1,0 +1,1063 @@
+/* ──────────────────────────────────────────────────────
+   GRIT LAB 3:3 전광판 — scoreboard.module.css
+   iPad 가로 모드(1366×1024, 1180×820) 최우선 설계
+   ────────────────────────────────────────────────────── */
+
+/* ═══ 기본 변수 ═══ */
+:root {
+    --sb-bg:        #07090e;
+    --sb-surface:   #0d111c;
+    --sb-border:    rgba(255,255,255,0.08);
+    --sb-orange:    oklch(65% 0.21 38);
+    --sb-blue:      oklch(60% 0.20 255);
+    --sb-gold:      oklch(78% 0.18 80);
+    --sb-green:     oklch(58% 0.22 145);
+    --sb-red:       oklch(55% 0.25 22);
+    --sb-white:     #ffffff;
+    --sb-muted:     rgba(255,255,255,0.45);
+    --sb-score-size: clamp(100px, 18vw, 220px);
+    --sb-team-size:  clamp(20px, 3.2vw,  48px);
+}
+
+/* ══════════════════════════════════
+   로딩 스크린
+══════════════════════════════════ */
+.loadingScreen {
+    min-height: 100vh;
+    background: var(--sb-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--sb-muted);
+    font-size: 18px;
+    gap: 20px;
+}
+.loadingPulse {
+    font-size: 64px;
+    animation: spin 1.4s ease-in-out infinite;
+}
+@keyframes spin {
+    0%,100% { transform: rotate(-12deg) scale(1.0); }
+    50%      { transform: rotate(12deg) scale(1.15); }
+}
+
+/* ══════════════════════════════════
+   세션 선택 화면
+══════════════════════════════════ */
+.setupScreen {
+    min-height: 100vh;
+    background: var(--sb-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+}
+.setupBg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 80% 60% at 50% 0%,   oklch(55% 0.18 255 / 0.15) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, oklch(65% 0.21 38 / 0.12)  0%, transparent 60%);
+    pointer-events: none;
+}
+.setupCard {
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: 24px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+    position: relative;
+    z-index: 1;
+}
+.setupLogo {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--sb-orange);
+    margin-bottom: -8px;
+}
+.setupTitle {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--sb-white);
+    font-style: italic;
+    letter-spacing: -0.02em;
+}
+.setupSub {
+    font-size: 14px;
+    color: var(--sb-muted);
+    margin-top: -12px;
+}
+.newSessionForm {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+.setupInput {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--sb-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: var(--sb-white);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.setupInput:focus {
+    border-color: var(--sb-orange);
+}
+.setupInput::placeholder { color: var(--sb-muted); }
+.setupCreateBtn {
+    background: var(--sb-orange);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.15s;
+}
+.setupCreateBtn:hover { opacity: 0.85; transform: scale(1.02); }
+.sessionList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.noSession {
+    text-align: center;
+    color: var(--sb-muted);
+    font-size: 14px;
+    padding: 24px 0;
+}
+.sessionItem {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--sb-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    color: var(--sb-white);
+}
+.sessionItem:hover, .sessionItemActive {
+    background: rgba(255,255,255,0.08);
+    border-color: var(--sb-orange);
+}
+.sessionDot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.dotActive { background: var(--sb-green); box-shadow: 0 0 6px var(--sb-green); }
+.dotEnded  { background: #555; }
+.sessionName { font-size: 14px; font-weight: 700; }
+.sessionDate { font-size: 12px; color: var(--sb-muted); margin-top: 2px; }
+.sessionArrow {
+    margin-left: auto;
+    color: var(--sb-muted);
+    font-size: 12px;
+}
+.backBtn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--sb-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    background: none;
+    border: none;
+    transition: color 0.2s;
+}
+.backBtn:hover { color: var(--sb-white); }
+
+/* ══════════════════════════════════
+   전광판 메인 래퍼
+══════════════════════════════════ */
+.scoreboard {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--sb-bg);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    /* 아이패드 가로 최적화 */
+    font-family: 'Anton', 'Inter', sans-serif;
+}
+
+/* ── 배경 레이어 ── */
+.bgCourt {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(to bottom, rgba(7,9,14,0.82), rgba(0,0,0,0.92)),
+        url('/court_bg.png');
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+    filter: contrast(1.05) saturate(0.7);
+}
+.bgGrain {
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 160px 160px;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* ── 위험 펄스 배경 (30초 이하) ── */
+.dangerPulse {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, oklch(55% 0.25 22 / 0.18) 0%, transparent 70%);
+    z-index: 0;
+    animation: dangerRadial 0.8s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+@keyframes dangerRadial {
+    from { opacity: 0.3; }
+    to   { opacity: 1; }
+}
+
+/* ── 종료 글로우 ── */
+.endedOverlayGlow {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, oklch(78% 0.18 80 / 0.12) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+    animation: goldPulse 2s ease-in-out infinite alternate;
+}
+@keyframes goldPulse {
+    from { opacity: 0.5; }
+    to   { opacity: 1; }
+}
+
+/* ══════════════════════════════════
+   헤더
+══════════════════════════════════ */
+.header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--sb-border);
+    background: rgba(7,9,14,0.6);
+    backdrop-filter: blur(12px);
+}
+.headerLeft, .headerRight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 200px;
+}
+.headerRight { justify-content: flex-end; }
+
+.iconBtn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--sb-muted);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--sb-border);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.iconBtn:hover { color: var(--sb-white); background: rgba(255,255,255,0.12); }
+
+.sessionLabel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.sessionLabelTag {
+    background: var(--sb-orange);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+.sessionLabelText {
+    color: var(--sb-muted);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+}
+
+.periodBadge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.periodText {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    color: var(--sb-white);
+    font-family: 'Anton', sans-serif;
+}
+.periodBtn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--sb-border);
+    color: var(--sb-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.periodBtn:hover { background: rgba(255,255,255,0.15); color: var(--sb-white); }
+
+.connBadge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 5px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.08em;
+    font-family: 'Inter', sans-serif;
+}
+.connActive {
+    background: oklch(58% 0.22 145 / 0.2);
+    color: var(--sb-green);
+    border: 1px solid oklch(58% 0.22 145 / 0.4);
+}
+.connOff {
+    background: rgba(255,255,255,0.05);
+    color: var(--sb-muted);
+    border: 1px solid var(--sb-border);
+}
+.connLocal {
+    background: oklch(78% 0.18 80 / 0.12);
+    color: var(--sb-gold);
+    border: 1px solid oklch(78% 0.18 80 / 0.3);
+}
+
+/* ══════════════════════════════════
+   메인 스코어보드 레이아웃
+══════════════════════════════════ */
+.main {
+    flex: 1;
+    position: relative;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 40px;
+    gap: 24px;
+}
+
+/* ══════════════════════════════════
+   팀 블록
+══════════════════════════════════ */
+.teamBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px 20px;
+    border-radius: 24px;
+    transition: all 0.4s;
+    position: relative;
+    overflow: hidden;
+}
+.teamBlock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 24px;
+    border: 1px solid transparent;
+    transition: border-color 0.4s, background 0.4s;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.teamA::before { border-color: oklch(60% 0.20 255 / 0.2); }
+.teamB::before { border-color: oklch(65% 0.21 38 / 0.2); }
+
+/* 우승 팀 강조 */
+.winner {
+    animation: winnerGlow 1.5s ease-in-out infinite alternate;
+}
+.winner::before {
+    border-color: var(--sb-gold) !important;
+    background: oklch(78% 0.18 80 / 0.06);
+}
+@keyframes winnerGlow {
+    from { box-shadow: 0 0 40px oklch(78% 0.18 80 / 0.2); }
+    to   { box-shadow: 0 0 80px oklch(78% 0.18 80 / 0.5); }
+}
+
+.teamNameWrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 2;
+}
+.teamNameRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.teamName {
+    font-size: var(--sb-team-size);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    color: var(--sb-white);
+    text-align: center;
+    font-family: 'Anton', sans-serif;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    line-height: 1.1;
+}
+.editNameBtn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--sb-border);
+    color: var(--sb-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.editNameBtn:hover { color: var(--sb-white); background: rgba(255,255,255,0.15); }
+
+.nameEditRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.nameInput {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--sb-orange);
+    border-radius: 10px;
+    padding: 8px 14px;
+    color: var(--sb-white);
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    outline: none;
+    width: 160px;
+    text-align: center;
+}
+.nameConfirmBtn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--sb-green);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+.nameConfirmBtn:hover { opacity: 0.85; }
+
+.winTag {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    color: var(--sb-gold);
+    background: oklch(78% 0.18 80 / 0.15);
+    border: 1px solid oklch(78% 0.18 80 / 0.4);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: 'Inter', sans-serif;
+}
+
+/* ── 스코어 ── */
+.scoreWrap {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+}
+.score {
+    font-size: var(--sb-score-size);
+    font-weight: 900;
+    line-height: 1;
+    color: var(--sb-white);
+    font-family: 'Anton', sans-serif;
+    letter-spacing: -0.04em;
+    text-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.1);
+    min-width: 2ch;
+    text-align: center;
+    transition: transform 0.15s;
+}
+.scorePulse {
+    animation: scorePulse 0.8s ease-in-out infinite alternate;
+    color: var(--sb-red);
+    text-shadow: 0 0 60px oklch(55% 0.25 22 / 0.8);
+}
+@keyframes scorePulse {
+    from { transform: scale(1.0); }
+    to   { transform: scale(1.04); }
+}
+
+.scoreBtn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid var(--sb-border);
+    color: var(--sb-muted);
+    cursor: pointer;
+    transition: all 0.18s;
+    flex-shrink: 0;
+}
+.scoreBtn:hover { background: rgba(255,255,255,0.15); color: var(--sb-white); transform: scale(1.08); }
+.scoreBtnPlus {
+    background: rgba(255,165,0,0.12);
+    border-color: oklch(65% 0.21 38 / 0.4);
+    color: var(--sb-orange);
+}
+.scoreBtnPlus:hover {
+    background: rgba(255,165,0,0.25);
+    color: var(--sb-orange);
+}
+
+/* ══════════════════════════════════
+   중앙 블록 (타이머)
+══════════════════════════════════ */
+.centerBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    min-width: 220px;
+}
+
+.timerDisplay {
+    font-family: 'Anton', 'Courier New', monospace;
+    font-size: clamp(56px, 9vw, 120px);
+    font-weight: 900;
+    color: var(--sb-white);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--sb-border);
+    border-radius: 20px;
+    padding: 16px 28px;
+    min-width: 210px;
+    transition: color 0.3s, border-color 0.3s;
+}
+.timerDanger {
+    color: var(--sb-red);
+    border-color: oklch(55% 0.25 22 / 0.5);
+    animation: timerBlink 0.8s step-end infinite;
+    text-shadow: 0 0 30px oklch(55% 0.25 22 / 0.8);
+}
+@keyframes timerBlink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+.timerZero {
+    color: var(--sb-gold);
+    border-color: oklch(78% 0.18 80 / 0.5);
+    animation: none;
+    text-shadow: 0 0 40px oklch(78% 0.18 80 / 0.6);
+}
+
+.vsDivider {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.25em;
+    color: var(--sb-muted);
+    font-family: 'Anton', sans-serif;
+}
+
+/* ── 타이머 컨트롤 ── */
+.timerControls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.timerBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 10px 18px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.18s;
+    border: 2px solid transparent;
+    font-family: 'Inter', sans-serif;
+}
+.timerBtnPlay {
+    background: var(--sb-green);
+    color: #fff;
+    box-shadow: 0 4px 20px oklch(58% 0.22 145 / 0.4);
+}
+.timerBtnPlay:hover { opacity: 0.85; transform: scale(1.04); }
+.timerBtnPause {
+    background: rgba(255,255,255,0.1);
+    color: var(--sb-white);
+    border-color: var(--sb-border);
+}
+.timerBtnPause:hover { background: rgba(255,255,255,0.18); }
+
+.timerResetBtn {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--sb-border);
+    color: var(--sb-muted);
+    cursor: pointer;
+    transition: all 0.18s;
+}
+.timerResetBtn:hover { color: var(--sb-white); background: rgba(255,255,255,0.12); }
+
+.endedLabel {
+    font-family: 'Anton', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.3em;
+    color: var(--sb-gold);
+    text-shadow: 0 0 20px oklch(78% 0.18 80 / 0.6);
+    animation: goldPulse 1.5s ease-in-out infinite alternate;
+}
+
+/* ══════════════════════════════════
+   하단 마퀴 바
+══════════════════════════════════ */
+.marqueeBar {
+    position: relative;
+    z-index: 10;
+    background: oklch(65% 0.21 38);
+    padding: 8px 0;
+    overflow: hidden;
+    border-top: 1px solid oklch(65% 0.21 38 / 0.3);
+}
+.marqueeTrack {
+    display: flex;
+    gap: 32px;
+    white-space: nowrap;
+    animation: marqueeScroll 28s linear infinite;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    font-family: 'Anton', 'Inter', sans-serif;
+}
+@keyframes marqueeScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+
+/* ══════════════════════════════════
+   다음 경기 버튼
+══════════════════════════════════ */
+.newGameBtn {
+    position: fixed;
+    bottom: 80px;
+    right: 40px;
+    z-index: 20;
+    background: linear-gradient(135deg, var(--sb-orange), oklch(65% 0.21 55));
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
+    padding: 16px 28px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 8px 32px oklch(65% 0.21 38 / 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-family: 'Inter', sans-serif;
+    animation: floatUp 2s ease-in-out infinite alternate;
+}
+.newGameBtn:hover {
+    transform: scale(1.06) translateY(-2px);
+    box-shadow: 0 12px 40px oklch(65% 0.21 38 / 0.7);
+}
+@keyframes floatUp {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-6px); }
+}
+
+/* ══════════════════════════════════
+   어드민 세션 패널
+══════════════════════════════════ */
+.setupPanel {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.setupPanelInner {
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: 24px;
+    padding: 36px 32px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+}
+.setupPanelHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.setupPanelTitle {
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--sb-white);
+    font-family: 'Inter', sans-serif;
+}
+.setupPanelSub {
+    font-size: 12px;
+    color: var(--sb-muted);
+    font-family: 'Inter', sans-serif;
+    margin-top: -8px;
+}
+.panelCloseBtn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--sb-border);
+    border-radius: 10px;
+    padding: 10px;
+    color: var(--sb-muted);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-family: 'Inter', sans-serif;
+}
+.panelCloseBtn:hover { color: var(--sb-white); }
+
+/* ══════════════════════════════════
+   상태 변형 클래스
+══════════════════════════════════ */
+.live .header {
+    border-bottom-color: oklch(58% 0.22 145 / 0.3);
+}
+.ended .header {
+    border-bottom-color: oklch(78% 0.18 80 / 0.3);
+}
+
+/* ══════════════════════════════════
+   📱 아이패드 가로 모드 최적화
+   (landscape 768px ~ 1366px)
+══════════════════════════════════ */
+@media (orientation: landscape) and (max-height: 900px) {
+    .main {
+        padding: 0 28px;
+        gap: 16px;
+    }
+    .teamBlock {
+        gap: 12px;
+        padding: 20px 16px;
+    }
+    .header {
+        padding: 12px 24px;
+    }
+    .centerBlock {
+        min-width: 180px;
+    }
+    .timerDisplay {
+        font-size: clamp(48px, 8vw, 100px);
+        padding: 12px 20px;
+        min-width: 180px;
+    }
+    .timerControls {
+        gap: 8px;
+    }
+}
+
+/* ══════════════════════════════════
+   📱 작은 모바일 폰 (세로)
+══════════════════════════════════ */
+@media (max-width: 767px) and (orientation: portrait) {
+    .main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        padding: 16px;
+        gap: 12px;
+        align-items: start;
+    }
+    .teamA { order: 1; }
+    .centerBlock { order: 2; min-width: unset; }
+    .teamB { order: 3; }
+
+    .score {
+        font-size: clamp(72px, 28vw, 120px);
+    }
+    .timerDisplay {
+        font-size: clamp(40px, 14vw, 80px);
+        padding: 10px 16px;
+        min-width: unset;
+        width: 100%;
+        text-align: center;
+    }
+    .teamName {
+        font-size: clamp(20px, 8vw, 36px);
+    }
+    .sessionLabelText {
+        display: none;
+    }
+    .newGameBtn {
+        bottom: 20px;
+        right: 20px;
+        font-size: 15px;
+        padding: 14px 20px;
+    }
+}
+
+/* ══════════════════════════════════
+   패드 최적화 거대 폰트 (UI Update)
+   ══════════════════════════════════ */
+.teamNameHuge {
+    font-size: clamp(40px, 8vw, 80px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    color: var(--sb-white);
+    text-align: center;
+    font-family: 'Anton', sans-serif;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    line-height: 1.1;
+    margin: 0;
+    /* 팀명 배경 플레이트 */
+    background: rgba(0, 0, 0, 0.45);
+    padding: 12px 32px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    min-width: 240px;
+}
+.scoreGiant {
+    font-size: clamp(120px, 22vw, 250px);
+    font-weight: 400;
+    line-height: 0.95;
+    color: var(--sb-white);
+    font-family: 'Anton', sans-serif;
+    letter-spacing: 0.03em;
+    text-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.1);
+    min-width: 1.5ch;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+    user-select: none;
+    /* 점수 배경 플레이트 (디지털 스코어보드 느낌) */
+    background: rgba(0, 0, 0, 0.75);
+    padding: 30px 40px;
+    border-radius: 20px;
+    border: 2px solid rgba(255,255,255,0.06);
+    box-shadow: inset 0 10px 50px rgba(0,0,0,0.9), 0 10px 30px rgba(0,0,0,0.6);
+}
+.scoreGiant:active {
+    transform: scale(0.95);
+}
+.scoreControlsVertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.scoreBtnMicro {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid var(--sb-border);
+    color: var(--sb-white);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+.scoreBtnMicro:active { background: rgba(255,255,255,0.2); transform: scale(0.9); }
+
+.timerGroup, .shotClockGroup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.timerLabel {
+    color: var(--sb-orange);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    margin: 0;
+    text-transform: uppercase;
+}
+.timerGiant {
+    font-family: 'Anton', 'Courier New', monospace;
+    font-size: clamp(80px, 14vw, 180px);
+    font-weight: 900;
+    color: var(--sb-white);
+    line-height: 1;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--sb-border);
+    border-radius: 20px;
+    padding: 10px 20px;
+    user-select: none;
+}
+.shotClockGiant {
+    font-family: 'Anton', 'Courier New', monospace;
+    font-size: clamp(100px, 16vw, 220px);
+    font-weight: 900;
+    color: var(--sb-red); /* 샷클락은 언제나 빨간색 포인트 */
+    line-height: 1;
+    text-shadow: 0 4px 30px oklch(55% 0.25 22 / 0.6);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--sb-border);
+    border-radius: 20px;
+    padding: 10px 20px;
+    user-select: none;
+}
+/* 게임클락 탭 롱프레스 터치 영역 최적화 위한 여백 정리 */
+.setupPanel {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* ══════════════════════════════════
+   대회 전체 결과 모달 (Results Dashboard)
+   ══════════════════════════════════ */
+.resultsOverlay {
+    position: fixed; inset: 0; z-index: 120;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 30px;
+}
+.resultsBoard {
+    background: var(--sb-surface);
+    border: 1px solid var(--sb-border);
+    border-radius: 24px;
+    padding: 40px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex; flex-direction: column; gap: 24px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.9);
+}
+.resultsTitle {
+    font-family: 'Anton', sans-serif;
+    font-size: 32px;
+    text-align: center;
+    color: var(--sb-white);
+    letter-spacing: 0.1em;
+    margin: 0;
+    border-bottom: 2px solid oklch(65% 0.21 38 / 0.5);
+    padding-bottom: 20px;
+}
+.resultsList {
+    flex: 1;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px;
+    padding-right: 12px;
+}
+.resultsList::-webkit-scrollbar { width: 8px; }
+.resultsList::-webkit-scrollbar-thumb { background: oklch(65% 0.21 38 / 0.8); border-radius: 4px; }
+
+.resultItemRow {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--sb-border);
+    padding: 16px 20px;
+    border-radius: 12px;
+}
+.resPeriod {
+    font-weight: 800; color: var(--sb-muted); font-size: 14px;
+    width: 80px;
+}
+.resTeamBox {
+    display: flex; align-items: center; gap: 16px;
+    flex: 1; justify-content: center;
+}
+.resTeam {
+    font-size: 20px; font-weight: 800; color: var(--sb-white);
+    display: flex; align-items: center; gap: 12px;
+}
+.resTeam.resWinner {
+    color: var(--sb-gold);
+    text-shadow: 0 0 12px oklch(78% 0.18 80 / 0.4);
+}
+.resScore {
+    font-family: 'Anton', sans-serif;
+    font-size: 28px;
+    color: var(--sb-orange);
+}
+.resVs {
+    font-size: 14px; color: var(--sb-muted); font-weight: 700;
+}
+.resTag {
+    font-weight: 800; font-size: 14px;
+    padding: 6px 12px; border-radius: 8px;
+    background: rgba(255,255,255,0.1); color: var(--sb-muted);
+}
+.resTagWin {
+    background: oklch(78% 0.18 80 / 0.2); color: var(--sb-gold);
+    border: 1px solid oklch(78% 0.18 80 / 0.4);
+}
+.resultsFooter {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,165,0,0.1);
+    border: 1px solid var(--sb-orange);
+    padding: 20px; border-radius: 16px;
+}
+.countdownText {
+    font-size: 18px; font-weight: 700; color: var(--sb-white);
+}
+.countdownNum {
+    font-family: 'Anton', sans-serif; font-size: 32px; color: var(--sb-red);
+    margin: 0 8px; vertical-align: middle;
+}
+.skipBtn {
+    background: var(--sb-orange);
+    color: #fff; border: none; padding: 12px 24px;
+    font-size: 16px; font-weight: 800; border-radius: 12px;
+    cursor: pointer; transition: all 0.2s;
+}
+.skipBtn:hover { transform: scale(1.05); }
