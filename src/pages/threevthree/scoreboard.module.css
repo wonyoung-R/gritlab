@@ -819,46 +819,57 @@
    ══════════════════════════════════ */
 @media (max-width: 932px) and (orientation: landscape) {
     .header {
-        padding: 8px 16px;
+        padding: 4px 12px;
     }
     .headerLeft, .headerRight {
         min-width: unset;
     }
     .main {
-        padding: 0 12px;
-        gap: 8px;
+        padding: 0 4px;
+        gap: 4px;
     }
     .teamBlock {
-        padding: 12px 8px;
-        gap: 8px;
+        padding: 8px 4px;
+        gap: 6px;
     }
     .teamNameHuge {
-        font-size: clamp(24px, 5vw, 40px);
+        font-size: clamp(20px, 4vw, 32px);
         min-width: unset;
-        padding: 8px 16px;
+        padding: 4px 12px;
+    }
+    .scoreWrap {
+        gap: 6px;
     }
     .scoreGiant {
-        font-size: clamp(60px, 14vw, 100px);
-        padding: 12px 20px;
+        font-size: clamp(50px, 12vw, 84px);
+        padding: 6px 12px;
+        min-width: 1ch;
+    }
+    .scoreControlsVertical {
+        gap: 6px;
     }
     .scoreBtnMicro {
-        width: 36px; height: 36px;
+        width: 32px; height: 32px;
+    }
+    .scoreBtnMicro svg {
+        width: 14px; height: 14px;
     }
     .centerBlock {
         min-width: unset;
-        gap: 8px;
+        gap: 6px;
+        padding: 0 4px;
     }
     .timerDisplay, .timerGiant {
-        font-size: clamp(40px, 8vw, 60px);
-        padding: 6px 12px;
+        font-size: clamp(32px, 8vw, 50px);
+        padding: 4px 8px;
         min-width: unset;
     }
     .shotClockGiant {
-        font-size: clamp(48px, 10vw, 80px);
-        padding: 6px 12px;
+        font-size: clamp(40px, 9vw, 60px);
+        padding: 4px 8px;
     }
     .timerLabel {
-        font-size: 10px;
+        font-size: 9px;
     }
 }
 
