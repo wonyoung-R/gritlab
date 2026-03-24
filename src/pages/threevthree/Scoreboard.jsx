@@ -14,8 +14,10 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
 
     const start = useCallback((e) => {
         isLongPress.current = false
-        if (e.targetTouches) {
+        if (e.type === 'touchstart' && e.targetTouches) {
             touchStartXY.current = { x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY }
+        } else if (e.type === 'mousedown') {
+            touchStartXY.current = null; // mouse events reset touch start
         }
         timerRef.current = setTimeout(() => {
             isLongPress.current = true
@@ -25,20 +27,32 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
 
     const stop = useCallback((e) => {
         clearTimeout(timerRef.current)
-        // 터치 이동 시 롱프레스 취소
+        // 터치 이동 시 롱프레스 (및 탭) 취소: 아이패드는 핑거 터치가 넓어 마진폭을 30px로 증대
         if (e.type === 'touchend' && isLongPress.current === false && touchStartXY.current) {
             const touch = e.changedTouches[0]
             const dx = Math.abs(touch.clientX - touchStartXY.current.x)
             const dy = Math.abs(touch.clientY - touchStartXY.current.y)
-            if (dx > 10 || dy > 10) return
+            if (dx > 30 || dy > 30) return
         }
-        if (!isLongPress.current) onClick?.(e)
+
+        // 터치 기기에서 발생한 고스트 click/mouseup 방지
+        if (e.type === 'mouseup' && touchStartXY.current) {
+            return; // 이미 touchend에서 처리됨
+        }
+
+        if (!isLongPress.current) {
+            if (e.cancelable && e.type === 'touchend') {
+                e.preventDefault();
+            }
+            onClick?.(e)
+        }
     }, [onClick])
 
     return {
         onMouseDown: start,     onMouseUp: stop,
         onTouchStart: start,    onTouchEnd: stop,
         onMouseLeave: () => clearTimeout(timerRef.current),
+        onTouchCancel: () => clearTimeout(timerRef.current),
     }
 }
 
