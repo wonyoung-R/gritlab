@@ -408,8 +408,7 @@
     z-index: 0;
 }
 
-.teamA::before { border-color: oklch(60% 0.20 255 / 0.2); }
-.teamB::before { border-color: oklch(65% 0.21 38 / 0.2); }
+.teamBlock::before { border-color: var(--team-color, transparent); opacity: 0.8; }
 
 /* 우승 팀 강조 */
 .winner {
@@ -1144,3 +1143,107 @@
     cursor: pointer; transition: all 0.2s;
 }
 .skipBtn:hover { transform: scale(1.05); }
+
+/* ══════════════════════════════════
+   Team Blocks Layout Updates
+   ══════════════════════════════════ */
+.teamHeaderRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    z-index: 20;
+}
+.paletteWrap {
+    position: relative;
+}
+.paletteBtn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--sb-muted);
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.paletteBtn:hover {
+    color: var(--sb-white);
+    background: rgba(255,255,255,0.15);
+}
+.airCommandPopup {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px;
+    border-radius: 20px;
+    display: flex;
+    gap: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    z-index: 100;
+}
+.colorBubble {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+.colorBubble:hover {
+    transform: scale(1.2);
+}
+
+/* ══════════════════════════════════
+   Fouls Counter
+   ══════════════════════════════════ */
+.foulWrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    position: relative;
+    z-index: 2;
+}
+.foulLabel {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--sb-muted);
+    letter-spacing: 0.1em;
+}
+.foulDigit {
+    font-family: 'Anton', sans-serif;
+    font-size: 48px;
+    color: var(--sb-white);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+.foulDigit:active {
+    transform: scale(0.95);
+}
+.foulPenalty {
+    color: var(--sb-red);
+    border-color: var(--sb-red);
+    background: rgba(255,0,0,0.1);
+    animation: goldPulse 1.5s ease-in-out infinite alternate;
+}
+.penaltyBadge {
+    background: var(--sb-red);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.1em;
+    position: absolute;
+    bottom: -15px;
+}

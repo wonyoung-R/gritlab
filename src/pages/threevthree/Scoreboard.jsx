@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import styles from './scoreboard.module.css';
-import { ArrowLeft, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save } from 'lucide-react';
+import { ArrowLeft, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing } from 'lucide-react';
 
 // ────────────────────────────────────────
 // 커스텀 훅: 롱프레스(Long Press) 감지기
@@ -107,12 +107,26 @@ const playBuzzer = () => {
     }
 };
 
+const TEAM_COLORS = [
+    { id: 'purple', css: 'oklch(60% 0.20 255)' },
+    { id: 'orange', css: 'oklch(65% 0.21 38)' },
+    { id: 'red',    css: 'oklch(55% 0.25 22)' },
+    { id: 'blue',   css: 'oklch(50% 0.18 240)' },
+    { id: 'green',  css: 'oklch(58% 0.22 145)' },
+    { id: 'black',  css: '#222' },
+    { id: 'white',  css: '#fff' }
+];
+
 // 기본 로컬 경기 상태
 const makeDefaultGame = () => ({
     team_a_name: '팀 A',
     team_b_name: '팀 B',
     team_a_score: 0,
     team_b_score: 0,
+    team_a_fouls: 0,
+    team_b_fouls: 0,
+    team_a_color: TEAM_COLORS[0].css,
+    team_b_color: TEAM_COLORS[1].css,
     period: 1,
     game_time: 600,   // 10분
     shot_clock: 12,   // 12초
@@ -138,6 +152,9 @@ export default function ThreeVThreeScoreboard() {
     const [timerRunning, setTimerRunning] = useState(false);
     const [showEditTime, setShowEditTime] = useState(false);
     const [tempTime, setTempTime]       = useState(10); // 기본 10분
+    const [showColorPicker, setShowColorPicker] = useState(null);
+    const [showEditFoul, setShowEditFoul] = useState(null);
+    const [tempFoul, setTempFoul] = useState(0);
 
     const [showResults, setShowResults] = useState(false);
     const [resultsData, setResultsData] = useState([]);
@@ -312,6 +329,21 @@ export default function ThreeVThreeScoreboard() {
         handleScoreChange('B', 1);
     }, 400);
 
+    // [파울] 탭: +1, 롱프레스: 직접 편집 모달
+    const foulAHandlers = useLongPress(() => {
+        setTempFoul(game.team_a_fouls);
+        setShowEditFoul('A');
+    }, () => {
+        setGame(prev => ({ ...prev, team_a_fouls: prev.team_a_fouls + 1 }));
+    }, 400);
+
+    const foulBHandlers = useLongPress(() => {
+        setTempFoul(game.team_b_fouls);
+        setShowEditFoul('B');
+    }, () => {
+        setGame(prev => ({ ...prev, team_b_fouls: prev.team_b_fouls + 1 }));
+    }, 400);
+
     // ── 팀 이름 편집 ──
     const handleTeamNameEdit = (team) => {
         setEditingTeam(team);
@@ -435,9 +467,14 @@ export default function ThreeVThreeScoreboard() {
 
                 <div className={styles.headerRight}>
                     {canControl && (
-                        <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult}>
-                            <Save size={18} />
-                        </button>
+                        <>
+                            <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
+                                <BellRing size={18} />
+                            </button>
+                            <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult} title="결과 저장">
+                                <Save size={18} />
+                            </button>
+                        </>
                     )}
                     {isAdmin && dbReady && (
                         <button className={styles.iconBtn} onClick={() => setShowSetup(true)}>
@@ -451,25 +488,42 @@ export default function ThreeVThreeScoreboard() {
             <main className={styles.main}>
 
                 {/* ── 팀 A ── */}
-                <div className={`${styles.teamBlock} ${styles.teamA} ${aWins && gameEnded ? styles.winner : ''}`}>
-                    <div className={styles.teamNameWrap}>
-                        {editingTeam === 'A' ? (
-                            <div className={styles.nameEditRow}>
-                                <input
-                                    className={styles.nameInput}
-                                    value={tempName}
-                                    onChange={e => setTempName(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handleTeamNameSave()}
-                                    autoFocus
-                                />
-                                <button className={styles.nameConfirmBtn} onClick={handleTeamNameSave}><Check size={18} /></button>
-                            </div>
-                        ) : (
-                            <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('A')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_a_name.length) }}>{game.team_a_name}</h2>
+                <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_a_color }}>
+                    <div className={styles.teamHeaderRow}>
+                        <div className={styles.teamNameWrap}>
+                            {editingTeam === 'A' ? (
+                                <div className={styles.nameEditRow}>
+                                    <input
+                                        className={styles.nameInput}
+                                        value={tempName}
+                                        onChange={e => setTempName(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleTeamNameSave()}
+                                        autoFocus
+                                    />
+                                    <button className={styles.nameConfirmBtn} onClick={handleTeamNameSave}><Check size={18} /></button>
+                                </div>
+                            ) : (
+                                <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('A')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
+                                    <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_a_name.length) }}>{game.team_a_name}</h2>
+                                </div>
+                            )}
+                            {aWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
+                        </div>
+                        {canControl && (
+                            <div className={styles.paletteWrap}>
+                                <button className={styles.paletteBtn} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'A' ? null : 'A'); }}>
+                                    <Palette size={20} />
+                                </button>
+                                {showColorPicker === 'A' && (
+                                    <div className={styles.airCommandPopup}>
+                                        {TEAM_COLORS.map(c => (
+                                            <button key={c.id} className={styles.colorBubble} style={{ backgroundColor: c.css }}
+                                                onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_a_color: c.css})); setShowColorPicker(null); }} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
-                        {aWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
                     </div>
 
                     <div className={styles.scoreWrap}>
@@ -483,6 +537,15 @@ export default function ThreeVThreeScoreboard() {
                                 <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); handleScoreChange('A', -1); }}><Minus size={18} /></button>
                             </div>
                         )}
+                    </div>
+
+                    <div className={styles.foulWrap}>
+                        <div className={styles.foulLabel}>TEAM FOULS</div>
+                        <div className={`${styles.foulDigit} ${game.team_a_fouls >= 7 ? styles.foulPenalty : ''}`}
+                             {...(canControl ? foulAHandlers : {})} style={{ cursor: canControl ? 'pointer' : 'default' }}>
+                            {game.team_a_fouls}
+                        </div>
+                        {game.team_a_fouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
                     </div>
                 </div>
 
@@ -517,25 +580,42 @@ export default function ThreeVThreeScoreboard() {
                 </div>
 
                 {/* ── 팀 B ── */}
-                <div className={`${styles.teamBlock} ${styles.teamB} ${bWins && gameEnded ? styles.winner : ''}`}>
-                    <div className={styles.teamNameWrap}>
-                        {editingTeam === 'B' ? (
-                            <div className={styles.nameEditRow}>
-                                <input
-                                    className={styles.nameInput}
-                                    value={tempName}
-                                    onChange={e => setTempName(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handleTeamNameSave()}
-                                    autoFocus
-                                />
-                                <button className={styles.nameConfirmBtn} onClick={handleTeamNameSave}><Check size={18} /></button>
-                            </div>
-                        ) : (
-                            <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('B')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_b_name.length) }}>{game.team_b_name}</h2>
+                <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_b_color }}>
+                    <div className={styles.teamHeaderRow}>
+                        <div className={styles.teamNameWrap}>
+                            {editingTeam === 'B' ? (
+                                <div className={styles.nameEditRow}>
+                                    <input
+                                        className={styles.nameInput}
+                                        value={tempName}
+                                        onChange={e => setTempName(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleTeamNameSave()}
+                                        autoFocus
+                                    />
+                                    <button className={styles.nameConfirmBtn} onClick={handleTeamNameSave}><Check size={18} /></button>
+                                </div>
+                            ) : (
+                                <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('B')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
+                                    <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_b_name.length) }}>{game.team_b_name}</h2>
+                                </div>
+                            )}
+                            {bWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
+                        </div>
+                        {canControl && (
+                            <div className={styles.paletteWrap}>
+                                <button className={styles.paletteBtn} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'B' ? null : 'B'); }}>
+                                    <Palette size={20} />
+                                </button>
+                                {showColorPicker === 'B' && (
+                                    <div className={styles.airCommandPopup}>
+                                        {TEAM_COLORS.map(c => (
+                                            <button key={c.id} className={styles.colorBubble} style={{ backgroundColor: c.css }}
+                                                onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_color: c.css})); setShowColorPicker(null); }} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
-                        {bWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
                     </div>
 
                     <div className={styles.scoreWrap}>
@@ -550,9 +630,44 @@ export default function ThreeVThreeScoreboard() {
                             </div>
                         )}
                     </div>
+
+                    <div className={styles.foulWrap}>
+                        <div className={styles.foulLabel}>TEAM FOULS</div>
+                        <div className={`${styles.foulDigit} ${game.team_b_fouls >= 7 ? styles.foulPenalty : ''}`}
+                             {...(canControl ? foulBHandlers : {})} style={{ cursor: canControl ? 'pointer' : 'default' }}>
+                            {game.team_b_fouls}
+                        </div>
+                        {game.team_b_fouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
+                    </div>
                 </div>
 
             </main>
+
+            
+            {showEditFoul && (
+                <div className={styles.setupPanel} onClick={() => setShowEditFoul(null)}>
+                    <div className={styles.setupPanelInner} onClick={e => e.stopPropagation()}>
+                        <h3 className={styles.setupPanelTitle}>팀 파울 수정 (Team {showEditFoul})</h3>
+                        <div className={styles.newSessionForm}>
+                            <input
+                                type="number"
+                                className={styles.setupInput}
+                                value={tempFoul}
+                                onChange={e => setTempFoul(parseInt(e.target.value) || 0)}
+                                autoFocus
+                            />
+                            <button className={styles.setupCreateBtn} onClick={() => {
+                                const val = parseInt(tempFoul) || 0;
+                                setGame(prev => ({
+                                    ...prev, 
+                                    [showEditFoul === 'A' ? 'team_a_fouls' : 'team_b_fouls']: val 
+                                }));
+                                setShowEditFoul(null);
+                            }}>확인</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── 롱프레스 모달: 시간 설정 ── */}
             {showEditTime && (
