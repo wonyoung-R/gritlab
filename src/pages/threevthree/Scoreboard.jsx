@@ -75,6 +75,38 @@ const TODAY_TITLE = () => {
     return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} GritLab 3:3`;
 };
 
+// ────────────────────────────────────────
+// 농구 부저 사운드(Web Audio API)
+// ────────────────────────────────────────
+const playBuzzer = () => {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // 농구 경기장 경적(Horn) 특유의 거칠고 두꺼운 주파수 대역 합성
+        const freqs = [250, 265, 280, 295]; 
+        const duration = 1.2; // 1.2초 재생
+        
+        freqs.forEach(freq => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        });
+    } catch (e) {
+        console.warn('Audio playback failed or locked', e);
+    }
+};
+
 // 기본 로컬 경기 상태
 const makeDefaultGame = () => ({
     team_a_name: '팀 A',
@@ -84,6 +116,7 @@ const makeDefaultGame = () => ({
     period: 1,
     game_time: 600,   // 10분
     shot_clock: 12,   // 12초
+    shot_clock_paused: false, // 샷클락 전용 일시정지 상태 (게임클락과 분리)
     status: 'READY',
 });
 
@@ -207,14 +240,20 @@ export default function ThreeVThreeScoreboard() {
             timerRef.current = setInterval(() => {
                 setGame(prev => {
                     const nextTime = prev.game_time - 1;
-                    const nextShot = prev.shot_clock - 1;
+                    const nextShot = prev.shot_clock_paused ? prev.shot_clock : prev.shot_clock - 1;
 
                     if (nextTime <= 0) {
                         setTimerRunning(false);
                         clearInterval(timerRef.current);
+                        // 게임클락 종료 시에도 부저 재생
+                        if (prev.game_time > 0) playBuzzer();
                         return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
                     }
                     if (nextShot <= 0) {
+                        // 샷클락이 처음 0초가 되는 그 순간에 한 번만 부저 재생
+                        if (prev.shot_clock > 0) {
+                            playBuzzer();
+                        }
                         // 샷클락 바이레이션: 0초로 유지. 별도 터치가 없는 한 경기시간은 멈추지 않고 흐름
                         return { ...prev, game_time: nextTime, shot_clock: 0 };
                     }
@@ -253,9 +292,11 @@ export default function ThreeVThreeScoreboard() {
         setShowEditTime(true);
     }, handleTimerToggle, 400);
 
-    // [샷클락] 탭: 12초 리셋, 롱프레스: 재생/일시정지
-    const shotClockHandlers = useLongPress(handleTimerToggle, () => {
-        setGame(prev => ({ ...prev, shot_clock: 12 }));
+    // [샷클락] 탭: 12초 리셋(재생), 롱프레스: 샷클락만 독립적 재생/일시정지
+    const shotClockHandlers = useLongPress(() => {
+        setGame(prev => ({ ...prev, shot_clock_paused: !prev.shot_clock_paused }));
+    }, () => {
+        setGame(prev => ({ ...prev, shot_clock: 12, shot_clock_paused: false }));
     }, 400);
 
     // [팀 스코어] 롱프레스: -1점, 탭: +1점 (모바일/패드 터치 딜레이 해소)
@@ -425,7 +466,7 @@ export default function ThreeVThreeScoreboard() {
                             </div>
                         ) : (
                             <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('A')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                <h2 className={styles.teamNameHuge}>{game.team_a_name}</h2>
+                                <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_a_name.length) }}>{game.team_a_name}</h2>
                             </div>
                         )}
                         {aWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
@@ -491,7 +532,7 @@ export default function ThreeVThreeScoreboard() {
                             </div>
                         ) : (
                             <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('B')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                <h2 className={styles.teamNameHuge}>{game.team_b_name}</h2>
+                                <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_b_name.length) }}>{game.team_b_name}</h2>
                             </div>
                         )}
                         {bWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}

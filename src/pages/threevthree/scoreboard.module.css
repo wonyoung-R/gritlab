@@ -833,7 +833,10 @@
         gap: 6px;
     }
     .teamNameHuge {
-        font-size: clamp(20px, 4vw, 32px);
+        font-size: clamp(14px, calc( 140px / var(--name-len, 4) * 1.2 ), 32px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         min-width: unset;
         padding: 4px 12px;
     }
@@ -916,7 +919,10 @@
    패드 최적화 거대 폰트 (UI Update)
    ══════════════════════════════════ */
 .teamNameHuge {
-    font-size: clamp(40px, 8vw, 80px);
+    font-size: clamp(24px, calc( 320px / var(--name-len, 4) * 1.1 ), 80px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-weight: 900;
     font-style: italic;
     letter-spacing: -0.02em;
