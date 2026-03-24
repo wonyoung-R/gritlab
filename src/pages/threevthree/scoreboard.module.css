@@ -815,6 +815,54 @@
 }
 
 /* ══════════════════════════════════
+   📱 모바일 폰 가로 모드 (iPhone 15 등)
+   ══════════════════════════════════ */
+@media (max-width: 932px) and (orientation: landscape) {
+    .header {
+        padding: 8px 16px;
+    }
+    .headerLeft, .headerRight {
+        min-width: unset;
+    }
+    .main {
+        padding: 0 12px;
+        gap: 8px;
+    }
+    .teamBlock {
+        padding: 12px 8px;
+        gap: 8px;
+    }
+    .teamNameHuge {
+        font-size: clamp(24px, 5vw, 40px);
+        min-width: unset;
+        padding: 8px 16px;
+    }
+    .scoreGiant {
+        font-size: clamp(60px, 14vw, 100px);
+        padding: 12px 20px;
+    }
+    .scoreBtnMicro {
+        width: 36px; height: 36px;
+    }
+    .centerBlock {
+        min-width: unset;
+        gap: 8px;
+    }
+    .timerDisplay, .timerGiant {
+        font-size: clamp(40px, 8vw, 60px);
+        padding: 6px 12px;
+        min-width: unset;
+    }
+    .shotClockGiant {
+        font-size: clamp(48px, 10vw, 80px);
+        padding: 6px 12px;
+    }
+    .timerLabel {
+        font-size: 10px;
+    }
+}
+
+/* ══════════════════════════════════
    📱 작은 모바일 폰 (세로)
 ══════════════════════════════════ */
 @media (max-width: 767px) and (orientation: portrait) {

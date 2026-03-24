@@ -215,10 +215,8 @@ export default function ThreeVThreeScoreboard() {
                         return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
                     }
                     if (nextShot <= 0) {
-                        // 샷클락 바이레이션: 삐 소리 후 정지 혹은 0초로 유지. 
-                        setTimerRunning(false);
-                        clearInterval(timerRef.current);
-                        return { ...prev, game_time: nextTime, shot_clock: 0, status: 'PAUSED' };
+                        // 샷클락 바이레이션: 0초로 유지. 별도 터치가 없는 한 경기시간은 멈추지 않고 흐름
+                        return { ...prev, game_time: nextTime, shot_clock: 0 };
                     }
                     return { ...prev, game_time: nextTime, shot_clock: nextShot };
                 });
@@ -255,10 +253,10 @@ export default function ThreeVThreeScoreboard() {
         setShowEditTime(true);
     }, handleTimerToggle, 400);
 
-    // [샷클락] 롱프레스: 12초 리셋, 탭: 재생/일시정지
-    const shotClockHandlers = useLongPress(() => {
+    // [샷클락] 탭: 12초 리셋, 롱프레스: 재생/일시정지
+    const shotClockHandlers = useLongPress(handleTimerToggle, () => {
         setGame(prev => ({ ...prev, shot_clock: 12 }));
-    }, handleTimerToggle, 400);
+    }, 400);
 
     // [팀 스코어] 롱프레스: -1점, 탭: +1점 (모바일/패드 터치 딜레이 해소)
     const scoreAHandlers = useLongPress(() => {
@@ -463,7 +461,7 @@ export default function ThreeVThreeScoreboard() {
 
                     {/* 샷클락 (3:3은 12초) */}
                     <div className={styles.shotClockGroup}>
-                        <p className={styles.timerLabel}>SHOT CLOCK (TAP: Play/Pause, HOLD: 12s)</p>
+                        <p className={styles.timerLabel}>SHOT CLOCK (TAP: 12s, HOLD: Pause)</p>
                         <div 
                             className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''}`}
                             {...(canControl ? shotClockHandlers : {})}
