@@ -8,6 +8,7 @@ import TournamentManage from './pages/tournament/Manage';
 import TournamentShootPage from './pages/tournament/Shoot';
 import TournamentLeaderboard from './pages/tournament/Leaderboard';
 import ThreeVThreeScoreboard from './pages/threevthree/Scoreboard';
+import ThreeVThreeAdmin from './pages/threevthree/Admin';
 import PlayZoneFAB from './components/PlayZoneFAB';
 
 export default function App() {
@@ -32,8 +33,9 @@ export default function App() {
                 {/* 3:3 라이브 전광판 */}
                 <Route path="/threevthree" element={<ThreeVThreeScoreboard />} />
 
-                {/* 임시 3v3 매니저 라우터 */}
-                <Route path="/tournament/manage-3v3/:id" element={<div className="text-white text-center p-20">3:3 대회 관리 전광판 준비중...</div>} />
+                {/* 3:3 대회 관리 Admin */}
+                <Route path="/threevthree/admin" element={<ThreeVThreeAdmin />} />
+                <Route path="/tournament/manage-3v3/:id" element={<ThreeVThreeAdmin />} />
 
             </Routes>
             <PlayZoneFAB />

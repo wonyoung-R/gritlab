@@ -435,6 +435,7 @@ export default function ThreeVThreeScoreboard() {
     const aWins      = game.team_a_score > game.team_b_score;
     const bWins      = game.team_b_score > game.team_a_score;
     const shotClockZero = game.shot_clock <= 0;
+    const shotClockLow  = game.shot_clock > 0 && game.shot_clock <= 5;
 
     // 점수 추가 및 타이머 조작은 로그인 상관없이 항상 가능하도록 허용 (패드 로컬 조작 자유도 패치)
     const canControl = true; 
@@ -566,8 +567,8 @@ export default function ThreeVThreeScoreboard() {
                     {/* 샷클락 (3:3은 12초) */}
                     <div className={styles.shotClockGroup}>
                         <p className={styles.timerLabel}>SHOT CLOCK (TAP: 12s, HOLD: Pause)</p>
-                        <div 
-                            className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''}`}
+                        <div
+                            className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''} ${shotClockLow ? styles.shotClockDanger : ''}`}
                             {...(canControl ? shotClockHandlers : {})}
                             style={{ cursor: canControl ? 'pointer' : 'default' }}
                         >

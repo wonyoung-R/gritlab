@@ -376,10 +376,10 @@
     position: relative;
     z-index: 5;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr minmax(240px, 320px) 1fr;
     align-items: center;
     padding: 0 40px;
-    gap: 24px;
+    gap: 32px;
 }
 
 /* ══════════════════════════════════
@@ -400,8 +400,8 @@
 .teamBlock::before {
     content: '';
     position: absolute;
-    inset: 0;
-    border-radius: 24px;
+    inset: 4px;
+    border-radius: 20px;
     border: 1px solid transparent;
     transition: border-color 0.4s, background 0.4s;
     pointer-events: none;
@@ -1010,32 +1010,36 @@
     color: var(--sb-white);
     line-height: 1;
     text-shadow: 0 4px 20px rgba(0,0,0,0.8);
-    /* 타이머 배경 - Glassmorphism */
     background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     border-radius: 20px;
     padding: 10px 20px;
     user-select: none;
+    /* 자릿수 변경 시 레이아웃 고정 */
+    min-width: 5ch;
+    text-align: center;
 }
 .shotClockGiant {
     font-family: 'Anton', 'Courier New', monospace;
     font-size: clamp(100px, 16vw, 220px);
     font-weight: 900;
-    color: var(--sb-red); /* 샷클락은 언제나 빨간색 포인트 */
+    color: var(--sb-green); /* 기본 green */
     line-height: 1;
-    text-shadow: 0 4px 30px oklch(55% 0.25 22 / 0.6);
-    /* 샷클락 배경 - Glassmorphism */
+    text-shadow: 0 4px 30px oklch(58% 0.22 145 / 0.6);
     background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     border-radius: 20px;
     padding: 10px 20px;
     user-select: none;
+    /* 자릿수 변경 시 레이아웃 고정 */
+    min-width: 2.2ch;
+    text-align: center;
+}
+.shotClockDanger {
+    color: var(--sb-red) !important;
+    text-shadow: 0 4px 30px oklch(55% 0.25 22 / 0.6) !important;
 }
 /* 게임클락 탭 롱프레스 터치 영역 최적화 위한 여백 정리 */
 .setupPanel {
