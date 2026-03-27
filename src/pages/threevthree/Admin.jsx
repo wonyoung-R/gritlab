@@ -29,7 +29,7 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
             const touch = e.changedTouches[0];
             const dx = Math.abs(touch.clientX - touchStartXY.current.x);
             const dy = Math.abs(touch.clientY - touchStartXY.current.y);
-            if (dx > 30 || dy > 30) return;
+            if (dx > 15 || dy > 15) return;
         }
         if (e.type === 'mouseup' && touchStartXY.current) return;
         if (!isLongPress.current) {
@@ -63,9 +63,23 @@ const statusColor = (s) => {
 
 const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
-    const m = Math.floor(t / 60).toString().padStart(2, '0');
-    const s = (t % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    if (t < 60 && t > 0) {
+        const tenths = Math.floor((t % 1) * 10);
+        return `${s.toString().padStart(2, '0')}.${tenths}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+const formatShotClock = (seconds) => {
+    const t = Math.max(0, seconds);
+    if (t < 5 && t > 0) {
+        const whole = Math.floor(t);
+        const tenths = Math.floor((t % 1) * 10);
+        return `${whole}.${tenths}`;
+    }
+    return Math.floor(t).toString().padStart(2, '0');
 };
 
 // 농구 부저 사운드
@@ -124,14 +138,14 @@ export default function ThreeVThreeAdmin() {
     }, () => {
         if (!timerRunning && shotClock <= 0) return;
         setTimerRunning(!timerRunning);
-    }, 400);
+    }, 300);
 
     // ── 샷클락 탭: 12초 리셋, 롱프레스: 일시정지 토글 ──
     const shotClockHandlers = useLongPress(() => {
         // 샷클락 일시정지는 별도 state 없이 간단히 0으로 설정
     }, () => {
         setShotClock(12);
-    }, 400);
+    }, 300);
 
     // ── 대회 목록 로드 ──
     useEffect(() => { fetchTournaments(); }, []);
@@ -173,27 +187,30 @@ export default function ThreeVThreeAdmin() {
         setAllMatches(data || []);
     };
 
-    // ── 타이머 로직 ──
+    // ── 타이머 로직 (100ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
             timerRef.current = setInterval(() => {
+                const tick = 0.1;
                 setGameTime(prev => {
-                    if (prev <= 1) {
+                    const next = Math.round((prev - tick) * 10) / 10;
+                    if (next <= 0) {
                         setTimerRunning(false);
                         clearInterval(timerRef.current);
-                        playBuzzer();
+                        if (prev > 0) playBuzzer();
                         return 0;
                     }
-                    return prev - 1;
+                    return next;
                 });
                 setShotClock(prev => {
-                    if (prev <= 1) {
-                        playBuzzer();
+                    const next = Math.round((prev - tick) * 10) / 10;
+                    if (next <= 0) {
+                        if (prev > 0) playBuzzer();
                         return 0;
                     }
-                    return prev - 1;
+                    return next;
                 });
-            }, 1000);
+            }, 100);
         } else {
             clearInterval(timerRef.current);
         }
@@ -300,7 +317,7 @@ export default function ThreeVThreeAdmin() {
 
     const activeTournament = tournaments.find(t => t.id === activeTournamentId);
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
-    const shotClockLow = shotClock > 0 && shotClock <= 5;
+    const shotClockLow = shotClock > 0 && shotClock < 5;
 
     if (loading) {
         return <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-gray-500">Loading...</div>;
@@ -408,7 +425,7 @@ export default function ThreeVThreeAdmin() {
                                 {...shotClockHandlers}
                                 style={{ cursor: 'pointer' }}
                             >
-                                {String(Math.max(0, shotClock)).padStart(2, '0')}
+                                {formatShotClock(shotClock)}
                             </div>
                         </div>
 

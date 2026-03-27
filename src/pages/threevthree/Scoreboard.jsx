@@ -32,7 +32,7 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
             const touch = e.changedTouches[0]
             const dx = Math.abs(touch.clientX - touchStartXY.current.x)
             const dy = Math.abs(touch.clientY - touchStartXY.current.y)
-            if (dx > 30 || dy > 30) return
+            if (dx > 15 || dy > 15) return
         }
 
         // 터치 기기에서 발생한 고스트 click/mouseup 방지
@@ -61,13 +61,25 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
 // ────────────────────────────────────────
 const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
-    const m = Math.floor(t / 60).toString().padStart(2, '0');
-    const s = (t % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    // 1분 미만: 1/10초 단위 표시
+    if (t < 60 && t > 0) {
+        const tenths = Math.floor((t % 1) * 10);
+        return `${s.toString().padStart(2, '0')}.${tenths}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
 const formatShotClock = (seconds) => {
-    return Math.max(0, seconds).toString().padStart(2, '0');
+    const t = Math.max(0, seconds);
+    // 5초 미만: 1/10초 단위 표시
+    if (t < 5 && t > 0) {
+        const whole = Math.floor(t);
+        const tenths = Math.floor((t % 1) * 10);
+        return `${whole}.${tenths}`;
+    }
+    return Math.floor(t).toString().padStart(2, '0');
 };
 
 const TODAY_TITLE = () => {
@@ -251,32 +263,32 @@ export default function ThreeVThreeScoreboard() {
         }
     };
 
-    // ── 로컬 타이머 ──
+    // ── 로컬 타이머 (100ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
             timerRef.current = setInterval(() => {
                 setGame(prev => {
-                    const nextTime = prev.game_time - 1;
-                    const nextShot = prev.shot_clock_paused ? prev.shot_clock : prev.shot_clock - 1;
+                    const tick = 0.1;
+                    const nextTime = Math.round((prev.game_time - tick) * 10) / 10;
+                    const nextShot = prev.shot_clock_paused
+                        ? prev.shot_clock
+                        : Math.round((prev.shot_clock - tick) * 10) / 10;
 
                     if (nextTime <= 0) {
                         setTimerRunning(false);
                         clearInterval(timerRef.current);
-                        // 게임클락 종료 시에도 부저 재생
                         if (prev.game_time > 0) playBuzzer();
                         return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
                     }
                     if (nextShot <= 0) {
-                        // 샷클락이 처음 0초가 되는 그 순간에 한 번만 부저 재생
                         if (prev.shot_clock > 0) {
                             playBuzzer();
                         }
-                        // 샷클락 바이레이션: 0초로 유지. 별도 터치가 없는 한 경기시간은 멈추지 않고 흐름
                         return { ...prev, game_time: nextTime, shot_clock: 0 };
                     }
                     return { ...prev, game_time: nextTime, shot_clock: nextShot };
                 });
-            }, 1000);
+            }, 100);
         } else {
             clearInterval(timerRef.current);
         }
@@ -307,14 +319,14 @@ export default function ThreeVThreeScoreboard() {
         setTimerRunning(false);
         setTempTime(Math.ceil(game.game_time / 60)); // 현재 분
         setShowEditTime(true);
-    }, handleTimerToggle, 400);
+    }, handleTimerToggle, 300);
 
     // [샷클락] 탭: 12초 리셋(재생), 롱프레스: 샷클락만 독립적 재생/일시정지
     const shotClockHandlers = useLongPress(() => {
         setGame(prev => ({ ...prev, shot_clock_paused: !prev.shot_clock_paused }));
     }, () => {
         setGame(prev => ({ ...prev, shot_clock: 12, shot_clock_paused: false }));
-    }, 400);
+    }, 300);
 
     // [팀 스코어] 롱프레스: -1점, 탭: +1점 (모바일/패드 터치 딜레이 해소)
     const scoreAHandlers = useLongPress(() => {
@@ -435,7 +447,7 @@ export default function ThreeVThreeScoreboard() {
     const aWins      = game.team_a_score > game.team_b_score;
     const bWins      = game.team_b_score > game.team_a_score;
     const shotClockZero = game.shot_clock <= 0;
-    const shotClockLow  = game.shot_clock > 0 && game.shot_clock <= 5;
+    const shotClockLow  = game.shot_clock > 0 && game.shot_clock < 5;
 
     // 점수 추가 및 타이머 조작은 로그인 상관없이 항상 가능하도록 허용 (패드 로컬 조작 자유도 패치)
     const canControl = true; 

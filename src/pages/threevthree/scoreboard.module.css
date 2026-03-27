@@ -376,10 +376,10 @@
     position: relative;
     z-index: 5;
     display: grid;
-    grid-template-columns: 1fr minmax(240px, 320px) 1fr;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    padding: 0 40px;
-    gap: 32px;
+    padding: 0 24px;
+    gap: 12px;
 }
 
 /* ══════════════════════════════════
@@ -444,7 +444,6 @@
     color: var(--sb-white);
     text-align: center;
     font-family: 'Anton', sans-serif;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.6);
     line-height: 1.1;
 }
 .editNameBtn {
@@ -507,6 +506,7 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    padding: 4px 0;
     position: relative;
     z-index: 2;
 }
@@ -517,7 +517,6 @@
     color: var(--sb-white);
     font-family: 'Anton', sans-serif;
     letter-spacing: -0.04em;
-    text-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.1);
     min-width: 2ch;
     text-align: center;
     transition: transform 0.15s;
@@ -525,7 +524,6 @@
 .scorePulse {
     animation: scorePulse 0.8s ease-in-out infinite alternate;
     color: var(--sb-red);
-    text-shadow: 0 0 60px oklch(55% 0.25 22 / 0.8);
 }
 @keyframes scorePulse {
     from { transform: scale(1.0); }
@@ -561,8 +559,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
-    min-width: 220px;
+    gap: 12px;
+    padding: 8px 4px;
 }
 
 .timerDisplay {
@@ -573,7 +571,6 @@
     letter-spacing: 0.04em;
     line-height: 1;
     text-align: center;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--sb-border);
     border-radius: 20px;
@@ -585,7 +582,6 @@
     color: var(--sb-red);
     border-color: oklch(55% 0.25 22 / 0.5);
     animation: timerBlink 0.8s step-end infinite;
-    text-shadow: 0 0 30px oklch(55% 0.25 22 / 0.8);
 }
 @keyframes timerBlink {
     0%,100% { opacity: 1; }
@@ -595,7 +591,6 @@
     color: var(--sb-gold);
     border-color: oklch(78% 0.18 80 / 0.5);
     animation: none;
-    text-shadow: 0 0 40px oklch(78% 0.18 80 / 0.6);
 }
 
 .vsDivider {
@@ -656,7 +651,6 @@
     font-weight: 900;
     letter-spacing: 0.3em;
     color: var(--sb-gold);
-    text-shadow: 0 0 20px oklch(78% 0.18 80 / 0.6);
     animation: goldPulse 1.5s ease-in-out infinite alternate;
 }
 
@@ -790,8 +784,8 @@
 ══════════════════════════════════ */
 @media (orientation: landscape) and (max-height: 900px) {
     .main {
-        padding: 0 28px;
-        gap: 16px;
+        padding: 0 16px;
+        gap: 8px;
     }
     .teamBlock {
         gap: 12px;
@@ -799,9 +793,6 @@
     }
     .header {
         padding: 12px 24px;
-    }
-    .centerBlock {
-        min-width: 180px;
     }
     .timerDisplay {
         font-size: clamp(48px, 8vw, 100px);
@@ -928,7 +919,6 @@
     color: var(--sb-white);
     text-align: center;
     font-family: 'Anton', sans-serif;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
     line-height: 1.1;
     margin: 0;
     /* 팀명 배경 플레이트 - Glassmorphism */
@@ -948,7 +938,6 @@
     color: var(--sb-white);
     font-family: 'Anton', sans-serif;
     letter-spacing: 0.03em;
-    text-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.1);
     min-width: 1.5ch;
     text-align: center;
     cursor: pointer;
@@ -956,6 +945,7 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     position: relative;
     z-index: 10;
     /* 점수 배경 플레이트 - Glassmorphism */
@@ -993,7 +983,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    padding: 4px 0;
 }
 .timerLabel {
     color: var(--sb-orange);
@@ -1009,13 +1000,14 @@
     font-weight: 900;
     color: var(--sb-white);
     line-height: 1;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
     background: rgba(0, 0, 0, 0.3);
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     border-radius: 20px;
-    padding: 10px 20px;
+    padding: 16px 28px;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     /* 자릿수 변경 시 레이아웃 고정 */
     min-width: 5ch;
     text-align: center;
@@ -1026,20 +1018,20 @@
     font-weight: 900;
     color: var(--sb-green); /* 기본 green */
     line-height: 1;
-    text-shadow: 0 4px 30px oklch(58% 0.22 145 / 0.6);
     background: rgba(0, 0, 0, 0.3);
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     border-radius: 20px;
-    padding: 10px 20px;
+    padding: 16px 28px;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     /* 자릿수 변경 시 레이아웃 고정 */
     min-width: 2.2ch;
     text-align: center;
 }
 .shotClockDanger {
     color: var(--sb-red) !important;
-    text-shadow: 0 4px 30px oklch(55% 0.25 22 / 0.6) !important;
 }
 /* 게임클락 탭 롱프레스 터치 영역 최적화 위한 여백 정리 */
 .setupPanel {
@@ -1108,7 +1100,6 @@
 }
 .resTeam.resWinner {
     color: var(--sb-gold);
-    text-shadow: 0 0 12px oklch(78% 0.18 80 / 0.4);
 }
 .resScore {
     font-family: 'Anton', sans-serif;
