@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette } from 'lucide-react';
+import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette } from 'lucide-react';
 import styles from './scoreboard.module.css';
 
 // ── 롱프레스 감지 훅 (Scoreboard.jsx와 동일) ──
@@ -65,8 +65,8 @@ const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
     const m = Math.floor(t / 60);
     const s = Math.floor(t % 60);
-    if (t < 60 && t > 0) {
-        const tenths = Math.floor((t % 1) * 10);
+    if (t < 10 && t > 0) {
+        const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${s.toString().padStart(2, '0')}.${tenths}`;
     }
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -74,27 +74,28 @@ const formatTime = (totalSeconds) => {
 
 const formatShotClock = (seconds) => {
     const t = Math.max(0, seconds);
-    if (t < 5 && t > 0) {
+    if (t < 10 && t > 0) {
         const whole = Math.floor(t);
-        const tenths = Math.floor((t % 1) * 10);
+        const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${whole}.${tenths}`;
     }
-    return Math.floor(t).toString().padStart(2, '0');
+    return Math.ceil(t).toString().padStart(2, '0');
 };
 
 // 농구 부저 사운드
 const playBuzzer = () => {
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const freqs = [250, 265, 280, 295];
-        const duration = 1.2;
-        freqs.forEach(freq => {
+        const freqs = [150, 220, 300, 350, 400, 450]; 
+        const duration = 1.5; 
+        freqs.forEach((freq, idx) => {
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-            osc.type = 'sawtooth';
+            osc.type = idx % 2 === 0 ? 'sawtooth' : 'square';
+            osc.detune.setValueAtTime((Math.random() - 0.5) * 40, audioCtx.currentTime);
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gainNode.gain.setTargetAtTime(0, audioCtx.currentTime + duration - 0.2, 0.1);
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
             osc.start();
@@ -121,30 +122,53 @@ export default function ThreeVThreeAdmin() {
     const [liveMatch, setLiveMatch] = useState(null); // 현재 기록중인 match
     const [gameTime, setGameTime] = useState(600);     // 10분
     const [shotClock, setShotClock] = useState(12);
+    const [shotClockPaused, setShotClockPaused] = useState(false);
     const [timerRunning, setTimerRunning] = useState(false);
     const [teamAScore, setTeamAScore] = useState(0);
     const [teamBScore, setTeamBScore] = useState(0);
     const [teamAFouls, setTeamAFouls] = useState(0);
     const [teamBFouls, setTeamBFouls] = useState(0);
+    const [teamATimeouts, setTeamATimeouts] = useState(parseInt(localStorage.getItem('gritlab_default_timeouts')) || 2);
+    const [teamBTimeouts, setTeamBTimeouts] = useState(parseInt(localStorage.getItem('gritlab_default_timeouts')) || 2);
+    const shotClockLastTapRef = useRef(0);
     const [showEditTime, setShowEditTime] = useState(false);
-    const [tempTime, setTempTime] = useState(10);
+    const [editTarget, setEditTarget] = useState(null);
+    const [tempMins, setTempMins] = useState(0);
+    const [tempSecs, setTempSecs] = useState(0);
+    const [tempMsec, setTempMsec] = useState(0);
     const timerRef = useRef(null);
 
     // ── 게임클락 롱프레스: 시간 설정, 탭: 재생/일시정지 ──
     const gameClockHandlers = useLongPress(() => {
         setTimerRunning(false);
-        setTempTime(Math.ceil(gameTime / 60));
+        setEditTarget('GAME');
+        setTempMins(Math.floor(gameTime / 60));
+        setTempSecs(Math.floor(gameTime % 60));
+        setTempMsec(Math.floor((Math.round(gameTime * 10) % 10)));
         setShowEditTime(true);
     }, () => {
-        if (!timerRunning && shotClock <= 0) return;
         setTimerRunning(!timerRunning);
     }, 300);
 
-    // ── 샷클락 탭: 12초 리셋, 롱프레스: 일시정지 토글 ──
+    // ── 샷클락 탭: 12초 리셋, 롱프레스: 설정 창 ──
+    // ── 샷클락 탭: 원터치(일시정지 토글), 더블터치(12초 리셋), 롱프레스(직접 설정 창) ──
     const shotClockHandlers = useLongPress(() => {
-        // 샷클락 일시정지는 별도 state 없이 간단히 0으로 설정
+        setTimerRunning(false);
+        setEditTarget('SHOT');
+        setTempMins(Math.floor(shotClock / 60));
+        setTempSecs(Math.floor(shotClock % 60));
+        setTempMsec(Math.floor((Math.round(shotClock * 10) % 10)));
+        setShowEditTime(true);
     }, () => {
-        setShotClock(12);
+        const now = Date.now();
+        if (now - shotClockLastTapRef.current < 400) {
+            setShotClock(12);
+            setShotClockPaused(false);
+            shotClockLastTapRef.current = 0;
+        } else {
+            setShotClockPaused(p => !p);
+            shotClockLastTapRef.current = now;
+        }
     }, 300);
 
     // ── 대회 목록 로드 ──
@@ -190,32 +214,36 @@ export default function ThreeVThreeAdmin() {
     // ── 타이머 로직 (100ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
+            let lastUpdate = Date.now();
             timerRef.current = setInterval(() => {
-                const tick = 0.1;
+                const now = Date.now();
+                const diff = (now - lastUpdate) / 1000;
+                lastUpdate = now;
                 setGameTime(prev => {
-                    const next = Math.round((prev - tick) * 10) / 10;
-                    if (next <= 0) {
+                    const next = Math.max(0, prev - diff);
+                    if (prev > 0 && next <= 0) {
                         setTimerRunning(false);
                         clearInterval(timerRef.current);
-                        if (prev > 0) playBuzzer();
+                        playBuzzer();
                         return 0;
                     }
                     return next;
                 });
                 setShotClock(prev => {
-                    const next = Math.round((prev - tick) * 10) / 10;
-                    if (next <= 0) {
-                        if (prev > 0) playBuzzer();
+                    if (shotClockPaused) return prev;
+                    const next = Math.max(0, prev - diff);
+                    if (prev > 0 && next <= 0) {
+                        playBuzzer();
                         return 0;
                     }
                     return next;
                 });
-            }, 100);
+            }, 50);
         } else {
             clearInterval(timerRef.current);
         }
         return () => clearInterval(timerRef.current);
-    }, [timerRunning]);
+    }, [timerRunning, shotClockPaused]);
 
     // ── 대회 CRUD ──
     const handleCreateTournament = async () => {
@@ -315,6 +343,21 @@ export default function ThreeVThreeAdmin() {
         setLiveMatch(null);
     };
 
+    const renderFoulDots = (fouls) => {
+        const dots = [];
+        const maxDots = 7;
+        for (let i = 0; i < maxDots; i++) {
+            const isFilled = i < fouls;
+            let dotClass = '';
+            if (isFilled) {
+                if (i <= 2) dotClass = styles.dotActive;      // 1,2,3 초록색
+                else if (i <= 5) dotClass = styles.dotWarning; // 4,5,6 주황색
+                else dotClass = styles.dotPenalty;             // 7 빨간색
+            }
+            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
+        }
+        return dots;
+    };
     const activeTournament = tournaments.find(t => t.id === activeTournamentId);
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
     const shotClockLow = shotClock > 0 && shotClock < 5;
@@ -330,13 +373,13 @@ export default function ThreeVThreeAdmin() {
         const roundLabel = ROUNDS.find(r => r.id === liveMatch.round)?.label || liveMatch.round;
         const timeIsLow  = gameTime > 0 && gameTime <= 30;
         const timeIsZero = gameTime <= 0;
-        const gameEnded  = timeIsZero;
+        const gameEnded  = timerRunning ? false : timeIsZero && gameTime === 0 && teamAScore !== teamBScore; // 간단한 보호 장치
         const aWins      = teamAScore > teamBScore;
         const bWins      = teamBScore > teamAScore;
         const shotClockZero = shotClock <= 0;
 
         return (
-            <div className={`${styles.scoreboard} ${gameEnded ? styles.ended : timerRunning ? styles.live : ''}`}>
+            <div className={`${styles.scoreboard} ${gameEnded ? styles.ended : timerRunning ? styles.live : ''} ${shotClockZero && !gameEnded ? styles.shotClockExpiredBg : ''}`}>
                 {/* 배경 */}
                 <div className={styles.bgCourt} />
                 <div className={styles.bgGrain} />
@@ -347,24 +390,24 @@ export default function ThreeVThreeAdmin() {
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
                         <button className={styles.iconBtn} onClick={closeLiveWithoutSave}>
-                            <ArrowLeft size={20} />
+                            <ArrowLeft size={36} />
                         </button>
                         <div className={styles.sessionLabel}>
                             <span className={styles.sessionLabelTag}>{roundLabel}</span>
-                            <span className={styles.sessionLabelText}>GAME {liveMatch.match_order}</span>
+                            <span className={styles.sessionLabelText} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>GAME {liveMatch.match_order} <span style={{ color: '#ef4444', fontSize: 11 }}>● REC</span></span>
                         </div>
                     </div>
 
-                    <div className={styles.periodBadge}>
-                        <span className={styles.periodText} style={{ color: '#ef4444', fontSize: '10px' }}>● REC</span>
+                    <div className={styles.periodBadge} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: 84, fontWeight: 900, color: '#111', fontFamily: 'Anton, sans-serif', letterSpacing: '0.08em', lineHeight: 1 }}>GRIT LAB 🏀</span>
                     </div>
 
                     <div className={styles.headerRight}>
                         <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
-                            <BellRing size={18} />
+                            <BellRing size={36} />
                         </button>
                         <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={saveLiveAndClose} title="저장 & 종료">
-                            <Save size={18} />
+                            <Save size={36} />
                         </button>
                     </div>
                 </header>
@@ -372,6 +415,7 @@ export default function ThreeVThreeAdmin() {
                 {/* 메인 스코어보드 */}
                 <main className={styles.main}>
                     {/* 팀 A */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(60% 0.20 255)' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
@@ -397,12 +441,23 @@ export default function ThreeVThreeAdmin() {
 
                         <div className={styles.foulWrap}>
                             <div className={styles.foulLabel}>TEAM FOULS</div>
-                            <div className={`${styles.foulDigit} ${teamAFouls >= 7 ? styles.foulPenalty : ''}`}
-                                onClick={() => setTeamAFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
-                                {teamAFouls}
+                            <div className={styles.foulControlsRow}>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamAFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
+                                <div className={styles.foulDotsContainer} onClick={() => setTeamAFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
+                                    {renderFoulDots(teamAFouls)}
+                                </div>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamAFouls(f => f + 1); }}><Plus size={14} /></button>
                             </div>
                             {teamAFouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
                         </div>
+                    </div>
+                    {/* T.O OUTSIDE teamBlock */}
+                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                        <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
+                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamATimeouts(t => Math.max(0, t - 1)); }}><Minus size={18} /></button>
+                        <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{teamATimeouts}</span>
+                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamATimeouts(t => t + 1); }}><Plus size={18} /></button>
+                    </div>
                     </div>
 
                     {/* 중앙: 타이머 & 샷클락 */}
@@ -419,13 +474,25 @@ export default function ThreeVThreeAdmin() {
                         </div>
 
                         <div className={styles.shotClockGroup}>
-                            <p className={styles.timerLabel}>SHOT CLOCK (TAP: 12s)</p>
-                            <div
-                                className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''} ${shotClockLow ? styles.shotClockDanger : ''}`}
-                                {...shotClockHandlers}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                {formatShotClock(shotClock)}
+                            <p className={styles.timerLabel}>SHOT CLOCK</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setShotClock(s => s + 1); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronUp size={32} />
+                                </button>
+                                <div
+                                    className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''} ${shotClockLow ? styles.shotClockDanger : ''}`}
+                                    {...shotClockHandlers}
+                                    style={{ cursor: 'pointer', opacity: shotClockPaused ? 0.6 : 1, margin: 0, lineHeight: 1 }}
+                                >
+                                    {formatShotClock(shotClock)}
+                                </div>
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setShotClock(s => Math.max(0, s - 1)); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronDown size={32} />
+                                </button>
                             </div>
                         </div>
 
@@ -433,6 +500,7 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     {/* 팀 B */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(65% 0.21 38)' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
@@ -458,12 +526,23 @@ export default function ThreeVThreeAdmin() {
 
                         <div className={styles.foulWrap}>
                             <div className={styles.foulLabel}>TEAM FOULS</div>
-                            <div className={`${styles.foulDigit} ${teamBFouls >= 7 ? styles.foulPenalty : ''}`}
-                                onClick={() => setTeamBFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
-                                {teamBFouls}
+                            <div className={styles.foulControlsRow}>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
+                                <div className={styles.foulDotsContainer} onClick={() => setTeamBFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
+                                    {renderFoulDots(teamBFouls)}
+                                </div>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => f + 1); }}><Plus size={14} /></button>
                             </div>
                             {teamBFouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
                         </div>
+                    </div>
+                    {/* T.O OUTSIDE teamBlock */}
+                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                        <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
+                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(t => Math.max(0, t - 1)); }}><Minus size={18} /></button>
+                        <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{teamBTimeouts}</span>
+                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(t => t + 1); }}><Plus size={18} /></button>
+                    </div>
                     </div>
                 </main>
 
@@ -472,19 +551,17 @@ export default function ThreeVThreeAdmin() {
                     <div className={styles.setupPanel} onClick={() => setShowEditTime(false)}>
                         <div className={styles.setupPanelInner} onClick={e => e.stopPropagation()}>
                             <h3 className={styles.setupPanelTitle}>타이머 시간 설정</h3>
-                            <div className={styles.newSessionForm}>
-                                <input
-                                    type="number"
-                                    className={styles.setupInput}
-                                    value={tempTime}
-                                    onChange={e => setTempTime(e.target.value)}
-                                    autoFocus
-                                />
-                                <span style={{ color: 'white', alignSelf: 'center' }}>분</span>
+                            <div className={styles.newSessionForm} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                                <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMins} onChange={e => setTempMins(parseInt(e.target.value)||0)} />
+                                <span style={{ color: 'white' }}>분</span>
+                                <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempSecs} onChange={e => setTempSecs(parseInt(e.target.value)||0)} />
+                                <span style={{ color: 'white' }}>초</span>
+                                <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMsec} onChange={e => setTempMsec(parseInt(e.target.value)||0)} />
+                                <span style={{ color: 'white' }}>.x초</span>
                                 <button className={styles.setupCreateBtn} onClick={() => {
-                                    const newSec = parseInt(tempTime) * 60;
-                                    setGameTime(Number.isNaN(newSec) ? 600 : newSec);
-                                    setShotClock(12);
+                                    const totalSecs = (parseInt(tempMins)||0)*60 + (parseInt(tempSecs)||0) + (parseInt(tempMsec)||0)*0.1;
+                                    if (editTarget === 'GAME') setGameTime(totalSecs);
+                                    else setShotClock(totalSecs);
                                     setShowEditTime(false);
                                 }}>
                                     확인
@@ -506,7 +583,7 @@ export default function ThreeVThreeAdmin() {
             <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#07090e]/80 backdrop-blur sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate('/tournament/dashboard')} className="text-gray-400 hover:text-white transition">
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={36} />
                     </button>
                     <h1 className="text-xl font-black italic tracking-tight">
                         <span className="text-orange-400">GRIT LAB</span> 3:3 ADMIN

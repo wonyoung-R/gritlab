@@ -32,9 +32,11 @@ export default function App() {
 
                 {/* 3:3 라이브 전광판 */}
                 <Route path="/threevthree" element={<ThreeVThreeScoreboard />} />
+                <Route path="/3v3/scoreboard" element={<ThreeVThreeScoreboard />} />
 
                 {/* 3:3 대회 관리 Admin */}
                 <Route path="/threevthree/admin" element={<ThreeVThreeAdmin />} />
+                <Route path="/3v3/admin" element={<ThreeVThreeAdmin />} />
                 <Route path="/tournament/manage-3v3/:id" element={<ThreeVThreeAdmin />} />
 
             </Routes>
