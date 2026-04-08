@@ -284,7 +284,7 @@
 .headerRight { justify-content: flex-end; }
 
 .iconBtn {
-    width: 80px; height: 80px;
+    width: 40px; height: 40px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -305,15 +305,15 @@
 .sessionLabelTag {
     background: var(--sb-orange);
     color: #fff;
-    font-size: 20px;
+    font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.1em;
-    padding: 6px 12px;
-    border-radius: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
 }
 .sessionLabelText {
     color: var(--sb-muted);
-    font-size: 26px;
+    font-size: 15px;
     font-weight: 700;
     font-family: Inter, sans-serif;
     word-break: keep-all;     /* Do not cut words in the middle */
@@ -1304,11 +1304,12 @@
     gap: 10px;
 }
 .foulIndicatorDot {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: rgba(255,255,255,0.08);
     transition: background 0.2s, box-shadow 0.2s;
+    border: 1px solid rgba(255,255,255,0.1);
 }
 .dotActive {
     background: var(--sb-green);
@@ -1321,6 +1322,20 @@
 .dotPenalty {
     background: var(--sb-red);
     box-shadow: 0 0 10px oklch(55% 0.25 22 / 0.6);
+}
+.dotSevere {
+    background: #b000ff;
+    box-shadow: 0 0 14px rgba(176, 0, 255, 0.8);
+}
+.timeoutBall {
+    font-size: 36px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+.timeoutBallUsed {
+    opacity: 0.25;
+    filter: grayscale(1);
 }
 
 .timeInputGroup {

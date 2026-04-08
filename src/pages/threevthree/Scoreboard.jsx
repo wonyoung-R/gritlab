@@ -355,14 +355,15 @@ export default function ThreeVThreeScoreboard() {
     // 팀 파울 렌더링 헬퍼 (초록/빨강 점)
     const renderFoulDots = (fouls) => {
         const dots = [];
-        const maxDots = 7;
+        const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
             const isFilled = i < fouls;
             let dotClass = '';
             if (isFilled) {
-                if (i <= 2) dotClass = styles.dotActive;      // 1,2,3 초록색
-                else if (i <= 5) dotClass = styles.dotWarning; // 4,5,6 주황색
-                else dotClass = styles.dotPenalty;             // 7 빨간색
+                if (i <= 2) dotClass = styles.dotActive;       // 1-3
+                else if (i <= 5) dotClass = styles.dotWarning; // 4-6
+                else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
+                else dotClass = styles.dotSevere;              // 10
             }
             dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
         }
@@ -492,7 +493,7 @@ export default function ThreeVThreeScoreboard() {
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
                     <button className={styles.iconBtn} onClick={() => navigate('/')}>
-                        <ArrowLeft size={36} />
+                        <ArrowLeft size={20} />
                     </button>
                     <div className={styles.sessionLabel}>
                         <span className={styles.sessionLabelTag}>3v3</span>
@@ -510,16 +511,16 @@ export default function ThreeVThreeScoreboard() {
                     {canControl && (
                         <>
                             <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
-                                <BellRing size={36} />
+                                <BellRing size={20} />
                             </button>
                             <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult} title="결과 저장">
-                                <Save size={36} />
+                                <Save size={20} />
                             </button>
                         </>
                     )}
                     {isAdmin && dbReady && (
                         <button className={styles.iconBtn} onClick={() => setShowSetup(true)}>
-                            <Settings size={40} />
+                            <Settings size={22} />
                         </button>
                     )}
                 </div>
@@ -598,11 +599,14 @@ export default function ThreeVThreeScoreboard() {
                     </div>
                 </div>
                 {/* T.O OUTSIDE teamBlock */}
-                <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: canControl ? 'pointer' : 'default' }}
+                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_a_timeouts: prev.team_a_timeouts === 0 ? 2 : prev.team_a_timeouts - 1})); }}>
                     <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
-                    {canControl && <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_a_timeouts: Math.max(0, prev.team_a_timeouts - 1)})); }}><Minus size={18} /></button>}
-                    <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{game.team_a_timeouts}</span>
-                    {canControl && <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_a_timeouts: prev.team_a_timeouts + 1})); }}><Plus size={18} /></button>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {[0, 1].map(i => (
+                            <div key={i} className={`${styles.timeoutBall} ${i >= game.team_a_timeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
+                        ))}
+                    </div>
                 </div>
                 </div>
 
@@ -611,12 +615,28 @@ export default function ThreeVThreeScoreboard() {
                     {/* 게임클락 */}
                     <div className={styles.timerGroup}>
                         <p className={styles.timerLabel}>GAME CLOCK</p>
-                        <div 
-                            className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
-                            {...(canControl ? gameClockHandlers : {})}
-                            style={{ cursor: canControl ? 'pointer' : 'default' }}
-                        >
-                            {formatTime(game.game_time)}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                            {canControl && (
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, game_time: prev.game_time + 1})); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronUp size={32} />
+                                </button>
+                            )}
+                            <div 
+                                className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
+                                {...(canControl ? gameClockHandlers : {})}
+                                style={{ cursor: canControl ? 'pointer' : 'default', margin: 0, lineHeight: 1 }}
+                            >
+                                {formatTime(game.game_time)}
+                            </div>
+                            {canControl && (
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, game_time: Math.max(0, prev.game_time - 1)})); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronDown size={32} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -722,11 +742,14 @@ export default function ThreeVThreeScoreboard() {
                     </div>
                 </div>
                 {/* T.O OUTSIDE teamBlock */}
-                <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: canControl ? 'pointer' : 'default' }}
+                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_b_timeouts: prev.team_b_timeouts === 0 ? 2 : prev.team_b_timeouts - 1})); }}>
                     <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
-                    {canControl && <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_timeouts: Math.max(0, prev.team_b_timeouts - 1)})); }}><Minus size={18} /></button>}
-                    <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{game.team_b_timeouts}</span>
-                    {canControl && <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_timeouts: prev.team_b_timeouts + 1})); }}><Plus size={18} /></button>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {[0, 1].map(i => (
+                            <div key={i} className={`${styles.timeoutBall} ${i >= game.team_b_timeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
+                        ))}
+                    </div>
                 </div>
                 </div>
 

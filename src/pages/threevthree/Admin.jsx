@@ -345,14 +345,15 @@ export default function ThreeVThreeAdmin() {
 
     const renderFoulDots = (fouls) => {
         const dots = [];
-        const maxDots = 7;
+        const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
             const isFilled = i < fouls;
             let dotClass = '';
             if (isFilled) {
-                if (i <= 2) dotClass = styles.dotActive;      // 1,2,3 초록색
-                else if (i <= 5) dotClass = styles.dotWarning; // 4,5,6 주황색
-                else dotClass = styles.dotPenalty;             // 7 빨간색
+                if (i <= 2) dotClass = styles.dotActive;       // 1-3
+                else if (i <= 5) dotClass = styles.dotWarning; // 4-6
+                else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
+                else dotClass = styles.dotSevere;              // 10
             }
             dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
         }
@@ -390,7 +391,7 @@ export default function ThreeVThreeAdmin() {
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
                         <button className={styles.iconBtn} onClick={closeLiveWithoutSave}>
-                            <ArrowLeft size={36} />
+                            <ArrowLeft size={20} />
                         </button>
                         <div className={styles.sessionLabel}>
                             <span className={styles.sessionLabelTag}>{roundLabel}</span>
@@ -404,10 +405,10 @@ export default function ThreeVThreeAdmin() {
 
                     <div className={styles.headerRight}>
                         <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
-                            <BellRing size={36} />
+                            <BellRing size={20} />
                         </button>
                         <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={saveLiveAndClose} title="저장 & 종료">
-                            <Save size={36} />
+                            <Save size={20} />
                         </button>
                     </div>
                 </header>
@@ -452,11 +453,14 @@ export default function ThreeVThreeAdmin() {
                         </div>
                     </div>
                     {/* T.O OUTSIDE teamBlock */}
-                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: 'pointer' }}
+                         onClick={(e) => { e.stopPropagation(); setTeamATimeouts(prev => prev === 0 ? 2 : prev - 1); }}>
                         <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
-                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamATimeouts(t => Math.max(0, t - 1)); }}><Minus size={18} /></button>
-                        <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{teamATimeouts}</span>
-                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamATimeouts(t => t + 1); }}><Plus size={18} /></button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {[0, 1].map(i => (
+                                <div key={i} className={`${styles.timeoutBall} ${i >= teamATimeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
+                            ))}
+                        </div>
                     </div>
                     </div>
 
@@ -464,12 +468,24 @@ export default function ThreeVThreeAdmin() {
                     <div className={styles.centerBlock}>
                         <div className={styles.timerGroup}>
                             <p className={styles.timerLabel}>GAME CLOCK (TAP: Play/Pause, HOLD: Edit)</p>
-                            <div
-                                className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
-                                {...gameClockHandlers}
-                                style={{ cursor: 'pointer' }}
-                            >
-                                {formatTime(gameTime)}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setGameTime(t => t + 1); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronUp size={32} />
+                                </button>
+                                <div
+                                    className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
+                                    {...gameClockHandlers}
+                                    style={{ cursor: 'pointer', margin: 0, lineHeight: 1 }}
+                                >
+                                    {formatTime(gameTime)}
+                                </div>
+                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onClick={(e) => { e.stopPropagation(); setGameTime(t => Math.max(0, t - 1)); }}
+                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                    <ChevronDown size={32} />
+                                </button>
                             </div>
                         </div>
 
@@ -537,11 +553,14 @@ export default function ThreeVThreeAdmin() {
                         </div>
                     </div>
                     {/* T.O OUTSIDE teamBlock */}
-                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                    <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: 'pointer' }}
+                         onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(prev => prev === 0 ? 2 : prev - 1); }}>
                         <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>T.O</span>
-                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(t => Math.max(0, t - 1)); }}><Minus size={18} /></button>
-                        <span style={{ fontSize: 40, fontWeight: 900, color: '#fff', width: 44, textAlign: 'center', margin: '0 8px' }}>{teamBTimeouts}</span>
-                        <button className={styles.scoreBtnMicro} style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.1)' }} onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(t => t + 1); }}><Plus size={18} /></button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {[0, 1].map(i => (
+                                <div key={i} className={`${styles.timeoutBall} ${i >= teamBTimeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
+                            ))}
+                        </div>
                     </div>
                     </div>
                 </main>
@@ -583,7 +602,7 @@ export default function ThreeVThreeAdmin() {
             <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#07090e]/80 backdrop-blur sticky top-0 z-50">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate('/tournament/dashboard')} className="text-gray-400 hover:text-white transition">
-                        <ArrowLeft size={36} />
+                        <ArrowLeft size={20} />
                     </button>
                     <h1 className="text-xl font-black italic tracking-tight">
                         <span className="text-orange-400">GRIT LAB</span> 3:3 ADMIN
