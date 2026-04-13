@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import styles from './scoreboard.module.css';
-import { ChevronUp, ChevronDown, ArrowLeft, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing } from 'lucide-react';
+import { ChevronUp, ChevronDown, ArrowLeft, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing, ChevronsUp, ChevronsDown } from 'lucide-react';
 
 // ────────────────────────────────────────
 // 커스텀 훅: 롱프레스(Long Press) 감지기
@@ -63,7 +63,8 @@ const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
     const m = Math.floor(t / 60);
     const s = Math.floor(t % 60);
-    if (t < 10 && t > 0) {
+    if (t < 60 && t > 0) {
+        // 1분 미만: SS.x 형식 (0.1초 단위 표시)
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${s.toString().padStart(2, '0')}.${tenths}`;
     }
@@ -617,11 +618,26 @@ export default function ThreeVThreeScoreboard() {
                         <p className={styles.timerLabel}>GAME CLOCK</p>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                             {canControl && (
-                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
-                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, game_time: prev.game_time + 1})); }}
-                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                    <ChevronUp size={32} />
-                                </button>
+                                game.game_time < 60 ? (
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Number((prev.game_time + 1).toFixed(1))})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsUp size={28} />
+                                        </button>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Number((prev.game_time + 0.1).toFixed(1))})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronUp size={28} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                        onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: prev.game_time + 1})); }}
+                                        onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                        <ChevronUp size={32} />
+                                    </button>
+                                )
                             )}
                             <div 
                                 className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
@@ -631,11 +647,26 @@ export default function ThreeVThreeScoreboard() {
                                 {formatTime(game.game_time)}
                             </div>
                             {canControl && (
-                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
-                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, game_time: Math.max(0, prev.game_time - 1)})); }}
-                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                    <ChevronDown size={32} />
-                                </button>
+                                game.game_time < 60 ? (
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Math.max(0, Number((prev.game_time - 1).toFixed(1)))})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsDown size={28} />
+                                        </button>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Math.max(0, Number((prev.game_time - 0.1).toFixed(1)))})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronDown size={28} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                        onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Math.max(0, prev.game_time - 1)})); }}
+                                        onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                        <ChevronDown size={32} />
+                                    </button>
+                                )
                             )}
                         </div>
                     </div>
@@ -645,11 +676,26 @@ export default function ThreeVThreeScoreboard() {
                         <p className={styles.timerLabel}>SHOT CLOCK</p>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                             {canControl && (
-                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
-                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: prev.shot_clock + 1})); }}
-                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                    <ChevronUp size={32} />
-                                </button>
+                                game.shot_clock < 10 ? (
+                                    <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 10 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Number((prev.shot_clock + 1).toFixed(1)), shot_clock_paused: true})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsUp size={28} />
+                                        </button>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Number((prev.shot_clock + 0.1).toFixed(1)), shot_clock_paused: true})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronUp size={28} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', zIndex: 10 }}
+                                        onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: prev.shot_clock + 1, shot_clock_paused: true})); }}
+                                        onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                        <ChevronUp size={32} />
+                                    </button>
+                                )
                             )}
                             <div
                                 className={`${styles.shotClockGiant} ${shotClockZero ? styles.timerDanger : ''} ${shotClockLow ? styles.shotClockDanger : ''}`}
@@ -659,11 +705,26 @@ export default function ThreeVThreeScoreboard() {
                                 {formatShotClock(game.shot_clock)}
                             </div>
                             {canControl && (
-                                <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
-                                    onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Math.max(0, prev.shot_clock - 1)})); }}
-                                    onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                    <ChevronDown size={32} />
-                                </button>
+                                game.shot_clock <= 10 ? (
+                                    <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 10 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Math.max(0, Number((prev.shot_clock - 1).toFixed(1))), shot_clock_paused: true})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsDown size={28} />
+                                        </button>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 56, height: 44, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Math.max(0, Number((prev.shot_clock - 0.1).toFixed(1))), shot_clock_paused: true})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronDown size={28} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 64, height: 44, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', zIndex: 10 }}
+                                        onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, shot_clock: Math.max(0, prev.shot_clock - 1), shot_clock_paused: true})); }}
+                                        onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                        <ChevronDown size={32} />
+                                    </button>
+                                )
                             )}
                         </div>
                     </div>
