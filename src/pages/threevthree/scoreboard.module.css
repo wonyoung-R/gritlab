@@ -1015,19 +1015,31 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 4px 0;
+    padding: 16px 20px;
+    border-radius: 20px;
+}
+.timerGroup {
+    background: oklch(60% 0.20 255 / 0.07);
+    border: 1px solid oklch(60% 0.20 255 / 0.3);
+}
+.shotClockGroup {
+    background: oklch(65% 0.21 38 / 0.08);
+    border: 1px solid oklch(65% 0.21 38 / 0.35);
+}
+.timerGroup .timerLabel {
+    color: oklch(72% 0.14 255);
 }
 .timerLabel {
     color: var(--sb-orange);
     font-weight: 800;
-    font-size: 14px;
+    font-size: 20px;
     letter-spacing: 0.1em;
     margin: 0;
     text-transform: uppercase;
 }
 .timerGiant {
     font-family: 'Anton', 'Courier New', monospace;
-    font-size: clamp(80px, 14vw, 180px);
+    font-size: clamp(64px, 11.2vw, 144px);
     font-weight: 900;
     color: var(--sb-white);
     line-height: 1;
@@ -1039,8 +1051,8 @@
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    /* 자릿수 변경 시 레이아웃 고정 */
-    min-width: 5ch;
+    /* 자릿수 변경 시 레이아웃 고정 — min-width→width로 고정 */
+    width: 5.2ch;
     text-align: center;
 }
 .shotClockGiant {
@@ -1057,8 +1069,8 @@
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    /* 자릿수 변경 시 레이아웃 고정 */
-    min-width: 2.2ch;
+    /* 자릿수 변경 시 레이아웃 고정 — min-width→width로 고정 */
+    width: 3.2ch;
     text-align: center;
 }
 .shotClockDanger {
@@ -1241,7 +1253,6 @@
     color: var(--sb-orange);
     margin-bottom: 12px;
     letter-spacing: 0.15em;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 .foulDigit {
     font-family: 'Anton', sans-serif;
@@ -1307,17 +1318,17 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.12);
     transition: background 0.2s, box-shadow 0.2s;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3);
 }
 .dotActive {
     background: var(--sb-green);
     box-shadow: 0 0 10px oklch(58% 0.22 145 / 0.6);
 }
 .dotWarning {
-    background: #ff9800;
-    box-shadow: 0 0 10px rgba(255, 152, 0, 0.6);
+    background: var(--sb-green);
+    box-shadow: 0 0 10px oklch(58% 0.22 145 / 0.6);
 }
 .dotPenalty {
     background: var(--sb-red);
@@ -1345,7 +1356,7 @@
     align-items: center;
 }
 .timerGroup .timerGiant {
-    color: var(--sb-red);
+    color: var(--sb-white);
     background: transparent;
     box-shadow: none;
     border: none;
