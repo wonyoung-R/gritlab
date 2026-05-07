@@ -161,6 +161,7 @@ export default function ThreeVThreeScoreboard() {
 
     const timerRef  = useRef(null);
     const resultsTimerRef = useRef(null);
+    const gameRef = useRef(null);
 
     // ── 인증 체크 ──
     useEffect(() => {
@@ -250,7 +251,10 @@ export default function ThreeVThreeScoreboard() {
         }
     };
 
-    // ── 로컬 타이머 (100ms 간격 → 1/10초 정밀도) ──
+    // game 변경 시 ref 동기화 — 타이머 내부에서 최신 상태 읽기 위함
+    useEffect(() => { gameRef.current = game; }, [game]);
+
+    // ── 로컬 타이머 (50ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
             let lastUpdate = Date.now();
@@ -258,21 +262,26 @@ export default function ThreeVThreeScoreboard() {
                 const now = Date.now();
                 const diff = (now - lastUpdate) / 1000;
                 lastUpdate = now;
-                setGame(prev => {
-                    const nextTime = Math.max(0, prev.game_time - diff);
-                    const nextShot = prev.shot_clock_paused ? prev.shot_clock : Math.max(0, prev.shot_clock - diff);
-                    if (prev.game_time > 0 && nextTime <= 0) {
-                        playBuzzerGame();
-                        setTimerRunning(false);
-                        clearInterval(timerRef.current);
-                        return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
-                    }
-                    if (!prev.shot_clock_paused && prev.shot_clock > 0 && nextShot <= 0) {
-                        playBuzzerShot();
-                        return { ...prev, game_time: nextTime, shot_clock: 0 };
-                    }
-                    return { ...prev, game_time: nextTime, shot_clock: nextShot };
-                });
+
+                const cur = gameRef.current;
+                if (!cur) return;
+
+                const nextTime = Math.max(0, cur.game_time - diff);
+                const nextShot = cur.shot_clock_paused ? cur.shot_clock : Math.max(0, cur.shot_clock - diff);
+
+                if (cur.game_time > 0 && nextTime <= 0) {
+                    playBuzzerGame();
+                    clearInterval(timerRef.current);
+                    setTimerRunning(false);
+                    setGame(prev => ({ ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' }));
+                    return;
+                }
+                if (!cur.shot_clock_paused && cur.shot_clock > 0 && nextShot <= 0) {
+                    playBuzzerShot();
+                    setGame(prev => ({ ...prev, game_time: nextTime, shot_clock: 0 }));
+                    return;
+                }
+                setGame(prev => ({ ...prev, game_time: nextTime, shot_clock: nextShot }));
             }, 50);
         } else {
             clearInterval(timerRef.current);
