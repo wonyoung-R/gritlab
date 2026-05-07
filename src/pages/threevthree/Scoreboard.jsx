@@ -87,16 +87,19 @@ const TODAY_TITLE = () => {
 };
 
 // ────────────────────────────────────────
-// 사운드: MP3 파일 재생
+// 사운드: 모듈 로드 시 미리 디코딩 → 즉시 재생
 // ────────────────────────────────────────
+const _gameBuzzer = new Audio('/sounds/gameclock_buzzer.mp3');
+const _shotBuzzer = new Audio('/sounds/shotclock_buzzer.mp3');
+
 const playBuzzerGame = () => {
-    const audio = new Audio('/sounds/gameclock_buzzer.mp3');
-    audio.play().catch(e => console.warn('Audio playback failed', e));
+    _gameBuzzer.currentTime = 0;
+    _gameBuzzer.play().catch(e => console.warn('Audio playback failed', e));
 };
 
 const playBuzzerShot = () => {
-    const audio = new Audio('/sounds/shotclock_buzzer.mp3');
-    audio.play().catch(e => console.warn('Audio playback failed', e));
+    _shotBuzzer.currentTime = 0;
+    _shotBuzzer.play().catch(e => console.warn('Audio playback failed', e));
 };
 
 const TEAM_COLORS = [
