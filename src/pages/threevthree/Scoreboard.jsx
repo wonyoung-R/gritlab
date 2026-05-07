@@ -73,7 +73,7 @@ const formatTime = (totalSeconds) => {
 
 const formatShotClock = (seconds) => {
     const t = Math.max(0, seconds);
-    if (t < 10 && t > 0) {
+    if (t < 5 && t > 0) {
         const whole = Math.floor(t);
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${whole}.${tenths}`;
@@ -87,77 +87,16 @@ const TODAY_TITLE = () => {
 };
 
 // ────────────────────────────────────────
-// NBA 스타일 부저 사운드 (Web Audio API)
-// 195 Hz 스퀘어파 + 45 Hz AM 변조 + tanh 클리핑 + 컴프레서
+// 사운드: MP3 파일 재생
 // ────────────────────────────────────────
-const playBuzzer = () => {
-    try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = audioCtx.currentTime;
-        const dur = 1.8;
+const playBuzzerGame = () => {
+    const audio = new Audio('/sounds/gameclock_buzzer.mp3');
+    audio.play().catch(e => console.warn('Audio playback failed', e));
+};
 
-        // tanh 소프트 클리핑 — 혼 드라이버 특유의 따뜻한 찌그러짐
-        const waveshaper = audioCtx.createWaveShaper();
-        const clipCurve = new Float32Array(512);
-        for (let i = 0; i < 512; i++) {
-            const x = (i * 2) / 512 - 1;
-            clipCurve[i] = Math.tanh(x * 6);
-        }
-        waveshaper.curve = clipCurve;
-        waveshaper.oversample = '4x';
-
-        // 컴프레서 — 펀치 있고 크게
-        const comp = audioCtx.createDynamicsCompressor();
-        comp.threshold.value = -14;
-        comp.knee.value = 2;
-        comp.ratio.value = 16;
-        comp.attack.value = 0.001;
-        comp.release.value = 0.08;
-
-        // 마스터 게인 + 엔벨로프
-        const master = audioCtx.createGain();
-        master.gain.setValueAtTime(0, now);
-        master.gain.linearRampToValueAtTime(0.9, now + 0.008); // 즉각적인 어택
-        master.gain.setValueAtTime(0.9, now + dur - 0.07);
-        master.gain.linearRampToValueAtTime(0, now + dur);
-
-        waveshaper.connect(comp);
-        comp.connect(master);
-        master.connect(audioCtx.destination);
-
-        // Layer 1: 메인 혼 (195 Hz 스퀘어파)
-        const osc1 = audioCtx.createOscillator();
-        osc1.type = 'square';
-        osc1.frequency.setValueAtTime(195, now);
-
-        // 45 Hz 스퀘어 LFO → AM 변조 ("BWWWW" 버저 질감)
-        const amOsc = audioCtx.createOscillator();
-        amOsc.type = 'square';
-        amOsc.frequency.setValueAtTime(45, now);
-        const amGain = audioCtx.createGain();
-        amGain.gain.setValueAtTime(0.45, now);
-        amOsc.connect(amGain);
-
-        const osc1Gain = audioCtx.createGain();
-        osc1Gain.gain.setValueAtTime(0.55, now);
-        amGain.connect(osc1Gain.gain);
-
-        osc1.connect(osc1Gain);
-        osc1Gain.connect(waveshaper);
-
-        // Layer 2: 2배음 (390 Hz) — 음색 두께
-        const osc2 = audioCtx.createOscillator();
-        osc2.type = 'square';
-        osc2.frequency.setValueAtTime(390, now);
-        const osc2Gain = audioCtx.createGain();
-        osc2Gain.gain.setValueAtTime(0.25, now);
-        osc2.connect(osc2Gain);
-        osc2Gain.connect(waveshaper);
-
-        [osc1, amOsc, osc2].forEach(o => { o.start(now); o.stop(now + dur); });
-    } catch (e) {
-        console.warn('Audio playback failed or locked', e);
-    }
+const playBuzzerShot = () => {
+    const audio = new Audio('/sounds/shotclock_buzzer.mp3');
+    audio.play().catch(e => console.warn('Audio playback failed', e));
 };
 
 const TEAM_COLORS = [
@@ -320,13 +259,13 @@ export default function ThreeVThreeScoreboard() {
                     const nextTime = Math.max(0, prev.game_time - diff);
                     const nextShot = prev.shot_clock_paused ? prev.shot_clock : Math.max(0, prev.shot_clock - diff);
                     if (prev.game_time > 0 && nextTime <= 0) {
-                        playBuzzer();
+                        playBuzzerGame();
                         setTimerRunning(false);
                         clearInterval(timerRef.current);
                         return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
                     }
                     if (!prev.shot_clock_paused && prev.shot_clock > 0 && nextShot <= 0) {
-                        playBuzzer();
+                        playBuzzerShot();
                         return { ...prev, game_time: nextTime, shot_clock: 0 };
                     }
                     return { ...prev, game_time: nextTime, shot_clock: nextShot };
@@ -531,7 +470,7 @@ export default function ThreeVThreeScoreboard() {
     const canControl = true; 
 
     return (
-        <div className={`${styles.scoreboard} ${gameEnded ? styles.ended : timerRunning ? styles.live : ''} ${shotClockZero && !gameEnded ? styles.shotClockExpiredBg : ''}`}>
+        <div className={`${styles.scoreboard} ${gameEnded ? styles.ended : timerRunning ? styles.live : ''}`}>
             {/* ── 배경 ── */}
             <div className={styles.bgCourt} />
             <div className={styles.bgGrain} />
@@ -553,7 +492,7 @@ export default function ThreeVThreeScoreboard() {
                 <div className={styles.headerRight}>
                     {canControl && (
                         <>
-                            <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
+                            <button className={styles.iconBtn} onClick={playBuzzerGame} title="수동 부저">
                                 <BellRing size={20} />
                             </button>
                             <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult} title="결과 저장">
@@ -660,7 +599,15 @@ export default function ThreeVThreeScoreboard() {
                         <p className={styles.timerLabel}>GAME CLOCK</p>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                             {canControl && (
-                                game.game_time < 60 ? (
+                                timeIsZero ? (
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: prev.game_time + 60, status: 'PAUSED'})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsUp size={28} />
+                                        </button>
+                                    </div>
+                                ) : game.game_time < 60 ? (
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
                                             onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Number((prev.game_time + 1).toFixed(1))})); }}
@@ -696,7 +643,15 @@ export default function ThreeVThreeScoreboard() {
                                 {formatTime(game.game_time)}
                             </div>
                             {canControl && (
-                                game.game_time < 60 ? (
+                                timeIsZero ? (
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
+                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Math.max(0, prev.game_time - 60)})); }}
+                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
+                                            <ChevronsDown size={28} />
+                                        </button>
+                                    </div>
+                                ) : game.game_time < 60 ? (
                                     <div style={{ display: 'flex', gap: 8 }}>
                                         <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
                                             onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: Math.max(0, Number((prev.game_time - 1).toFixed(1)))})); }}
