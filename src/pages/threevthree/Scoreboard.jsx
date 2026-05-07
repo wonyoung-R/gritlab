@@ -87,20 +87,44 @@ const TODAY_TITLE = () => {
 };
 
 // ────────────────────────────────────────
-// 사운드: 모듈 로드 시 미리 디코딩 → 즉시 재생
+// 사운드: Web Audio API — AudioBuffer 방식 (MP3 인코더 딜레이 없음)
 // ────────────────────────────────────────
-const _gameBuzzer = new Audio('/sounds/gameclock_buzzer.mp3');
-const _shotBuzzer = new Audio('/sounds/shotclock_buzzer.mp3');
+let _audioCtx = null;
+let _gameBuf = null;
+let _shotBuf = null;
 
-const playBuzzerGame = () => {
-    _gameBuzzer.currentTime = 0;
-    _gameBuzzer.play().catch(e => console.warn('Audio playback failed', e));
+const ensureCtx = () => {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
 };
 
-const playBuzzerShot = () => {
-    _shotBuzzer.currentTime = 0;
-    _shotBuzzer.play().catch(e => console.warn('Audio playback failed', e));
+const loadBuf = async (url) => {
+    const ctx = ensureCtx();
+    const res = await fetch(url);
+    const raw = await res.arrayBuffer();
+    return ctx.decodeAudioData(raw);
 };
+
+export const initBuzzers = async () => {
+    if (_gameBuf && _shotBuf) return;
+    [_gameBuf, _shotBuf] = await Promise.all([
+        loadBuf('/sounds/gameclock_buzzer.mp3'),
+        loadBuf('/sounds/shotclock_buzzer.mp3'),
+    ]);
+};
+
+const playBuf = (buf) => {
+    if (!buf) return;
+    const ctx = ensureCtx();
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+};
+
+const playBuzzerGame = () => playBuf(_gameBuf);
+const playBuzzerShot = () => playBuf(_shotBuf);
 
 const TEAM_COLORS = [
     { id: 'purple', css: 'oklch(60% 0.20 255)' },
@@ -161,6 +185,17 @@ export default function ThreeVThreeScoreboard() {
 
     const timerRef  = useRef(null);
     const resultsTimerRef = useRef(null);
+
+    // ── 사운드 프리로드: 첫 인터랙션 시 AudioContext 활성화 + 버퍼 로드 ──
+    useEffect(() => {
+        const handler = () => { initBuzzers(); };
+        document.addEventListener('click', handler, { once: true });
+        document.addEventListener('touchstart', handler, { once: true });
+        return () => {
+            document.removeEventListener('click', handler);
+            document.removeEventListener('touchstart', handler);
+        };
+    }, []);
 
     // ── 인증 체크 ──
     useEffect(() => {
