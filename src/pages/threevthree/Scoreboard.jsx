@@ -78,7 +78,7 @@ const formatShotClock = (seconds) => {
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${whole}.${tenths}`;
     }
-    return Math.ceil(t).toString().padStart(2, '0');
+    return Math.floor(t).toString().padStart(2, '0');
 };
 
 const TODAY_TITLE = () => {
