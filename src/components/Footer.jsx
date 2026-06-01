@@ -46,6 +46,12 @@ export default function Footer() {
           >
             Grit Admin
           </button>
+          <a
+            href="/grit-login.html"
+            className="text-[11px] text-white/15 hover:text-white/40 tracking-[0.25em] uppercase transition-colors"
+          >
+            3X3 Admin
+          </a>
         </div>
       </div>
 
