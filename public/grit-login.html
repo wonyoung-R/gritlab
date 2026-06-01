@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRIT LAB · 3X3 Admin Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+  /* ===========================================================
+     GRIT LAB — 3X3 Admin Login
+     디자인 시스템: GRIT LAB 3X3. 인증: Supabase signInWithPassword
+     성공 시 tournament.html(대회 관리 페이지)로 이동.
+     세션은 같은 도메인의 다른 페이지/React 앱과 공유됨(localStorage).
+     =========================================================== */
+  :root {
+    --navy:      #16243f;
+    --navy-2:    #1d2e4d;
+    --navy-line: #33456a;
+    --cream:     #e9e1ca;
+    --cream-2:   #f1ecdb;
+    --orange:    #ee7c1b;
+    --green:     #34c13e;
+    --red:       #d8302c;
+    --display: 'Anton', 'Black Han Sans', sans-serif;
+    --ui:      'Archivo', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    background: radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, var(--navy) 60%);
+    color: var(--cream);
+    font-family: var(--ui);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  button { font-family: var(--ui); cursor: pointer; border: none; }
+  input { font-family: var(--ui); }
+
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--navy);
+    border: 3px solid var(--cream);
+    box-shadow: 0 8px 28px rgba(0,0,0,.45);
+    overflow: hidden;
+  }
+  .login-head {
+    background: var(--cream);
+    color: var(--navy);
+    text-align: center;
+    padding: 26px 20px 22px;
+  }
+  .login-head .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-family: var(--display);
+    font-size: 38px;
+    letter-spacing: .03em;
+    line-height: 1;
+  }
+  .login-head .brand .ball { width: 34px; height: 34px; }
+  .login-head .tag {
+    font-family: var(--display);
+    font-size: 14px;
+    letter-spacing: .26em;
+    margin-top: 10px;
+    color: var(--orange);
+  }
+  .login-body { padding: 28px 26px 30px; }
+  .login-body .lead {
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: .1em;
+    text-align: center;
+    margin-bottom: 22px;
+    color: #8ea0c2;
+  }
+  .field-wrap { margin-bottom: 14px; }
+  .field-wrap label {
+    display: block;
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: .18em;
+    color: #8ea0c2;
+    margin-bottom: 7px;
+  }
+  .field {
+    width: 100%;
+    background: var(--navy-2);
+    border: 2px solid var(--navy-line);
+    color: var(--cream);
+    padding: 14px 16px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .field::placeholder { color: #6d7fa3; }
+  .field:focus { outline: none; border-color: var(--orange); }
+
+  .login-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: var(--orange);
+    color: #1a0d05;
+    font-family: var(--display);
+    font-size: 18px;
+    letter-spacing: .08em;
+    padding: 15px;
+    transition: filter .12s, transform .05s, opacity .12s;
+  }
+  .login-btn:hover { filter: brightness(1.08); }
+  .login-btn:active { transform: translateY(1px); }
+  .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .err {
+    background: rgba(216,48,44,.12);
+    border: 1px solid var(--red);
+    color: #f3b0ae;
+    font-size: 13px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .err.show { display: block; }
+
+  .foot {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 12px;
+    color: #6d7fa3;
+  }
+  .foot a { color: #8ea0c2; text-decoration: none; }
+  .foot a:hover { color: var(--orange); }
+
+  .checking {
+    font-family: var(--display);
+    letter-spacing: .12em;
+    color: #8ea0c2;
+    text-align: center;
+    padding: 40px 0;
+  }
+</style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-head">
+      <div class="brand">
+        GRIT LAB
+        <svg class="ball" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="46" fill="#16243f" stroke="#16243f" stroke-width="6"/>
+          <line x1="50" y1="6" x2="50" y2="94" stroke="#e9e1ca" stroke-width="5"/>
+          <line x1="6" y1="50" x2="94" y2="50" stroke="#e9e1ca" stroke-width="5"/>
+          <path d="M14 22 C40 42 40 58 14 78" stroke="#e9e1ca" stroke-width="5" fill="none"/>
+          <path d="M86 22 C60 42 60 58 86 78" stroke="#e9e1ca" stroke-width="5" fill="none"/>
+        </svg>
+      </div>
+      <div class="tag">3X3 TOURNAMENT ADMIN</div>
+    </div>
+
+    <div class="login-body">
+      <!-- 세션 확인 중 표시 -->
+      <div id="checking" class="checking">세션 확인 중…</div>
+
+      <!-- 로그인 폼 -->
+      <form id="loginForm" style="display:none" onsubmit="return handleLogin(event)">
+        <div class="lead">관리자 로그인</div>
+        <div id="err" class="err"></div>
+        <div class="field-wrap">
+          <label>이메일</label>
+          <input class="field" id="email" type="email" autocomplete="username" placeholder="admin@grit-lab.kr" required>
+        </div>
+        <div class="field-wrap">
+          <label>비밀번호</label>
+          <input class="field" id="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <button class="login-btn" id="submitBtn" type="submit">로그인 →</button>
+        <div class="foot">대회 관리 전용 · <a href="/">grit-lab.kr</a></div>
+      </form>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js"></script>
+<script>
+/* Supabase — 기존 GritLab 프로젝트와 동일 인스턴스 (anon 키는 공개용, RLS가 방어) */
+const SUPABASE_URL = 'https://mwitveudlafcrksokjtz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13aXR2ZXVkbGFmY3Jrc29ranR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzM5MDksImV4cCI6MjA4ODU0OTkwOX0.QYmGs8HWZuau3QUQOwL9VTj3IaaJL7Fw0c3Z6V1ocEw';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const DEST = 'tournament.html';   // 로그인 성공 시 이동할 대회 관리 페이지
+
+/* 이미 로그인돼 있으면 바로 관리 페이지로 (AdminLogin.jsx와 동일 패턴) */
+async function checkExistingSession(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){
+    window.location.replace(DEST);
+    return;
+  }
+  document.getElementById('checking').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('email').focus();
+}
+
+async function handleLogin(e){
+  e.preventDefault();
+  const errEl = document.getElementById('err');
+  const btn = document.getElementById('submitBtn');
+  errEl.classList.remove('show');
+  btn.disabled = true; btn.textContent = '로그인 중…';
+
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  if(error){
+    errEl.textContent = '이메일이나 비밀번호가 일치하지 않습니다.';
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = '로그인 →';
+    return false;
+  }
+  // 성공 → 대회 관리 페이지로
+  window.location.replace(DEST);
+  return false;
+}
+
+checkExistingSession();
+</script>
+</body>
+</html>
