@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown } from 'lucide-react';
 import styles from './scoreboard.module.css';
+import KeyboardGuide from './KeyboardGuide';
 
 // ── 롱프레스 감지 훅 (Scoreboard.jsx와 동일) ──
 const useLongPress = (onLongPress, onClick, ms = 600) => {
@@ -175,6 +176,7 @@ export default function ThreeVThreeAdmin() {
     const [teamBTimeouts, setTeamBTimeouts] = useState(parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1);
     const shotClockLastTapRef = useRef(0);
     const [showEditTime, setShowEditTime] = useState(false);
+    const [showKbdGuide, setShowKbdGuide] = useState(false); // 키보드 안내 오버레이 (대회당 1회)
     const [editTarget, setEditTarget] = useState(null);
     const [tempMins, setTempMins] = useState(0);
     const [tempSecs, setTempSecs] = useState(0);
@@ -287,6 +289,99 @@ export default function ThreeVThreeAdmin() {
         }
         return () => clearInterval(timerRef.current);
     }, [timerRunning, shotClockPaused]);
+
+    // ────────────────────────────────────────
+    // 키보드 단축키 (라이브 기록 중에만 활성) — 좌우 분리 블라인드 조작
+    // 실제 경기에서 고개 들었다놨다 하며 누락되는 문제 해결: 손가락 감각만으로 조작
+    // 왼손=A팀 / 오른손=B팀 / 가운데=공통. 바탕화면 Scoreboard.jsx에는 영향 없음(독립 컴포넌트)
+    // 샷클락 리셋은 F/J(검지 홈버튼 돌기)에 배치 — 가장 빈번 + 블라인드 기준점
+    // ────────────────────────────────────────
+    useEffect(() => {
+        if (!liveMatch) return;     // 라이브 모드에서만 동작
+        if (showEditTime) return;   // 시간편집 모달 열려있으면 비활성
+        if (showKbdGuide) return;   // 키보드 안내 오버레이 열려있으면 비활성
+
+        const handleKey = (e) => {
+            // 입력창 포커스 중엔 무시 (팀명/시간 입력 등)
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+            // ── 시간 +/- 조정 (데드타임에 멈춰서 미세 조정) ──
+            // 터치 버튼과 동일: 게임클락은 정지 후, 샷클락은 일시정지 후 가감.
+            // 방향키는 홀드 시 자동반복(빠른 스크럽) 허용 — 아래 e.repeat 차단 대상에서 제외
+            switch (e.key) {
+                case 'ArrowUp':    // 게임클락 +1초
+                    e.preventDefault(); setTimerRunning(false);
+                    setGameTime(t => Number((t + 1).toFixed(1))); return;
+                case 'ArrowDown':  // 게임클락 -1초
+                    e.preventDefault(); setTimerRunning(false);
+                    setGameTime(t => Math.max(0, Number((t - 1).toFixed(1)))); return;
+                case 'ArrowRight': // 샷클락 +1초
+                    e.preventDefault(); setShotClockPaused(true);
+                    setShotClock(s => Number((s + 1).toFixed(1))); return;
+                case 'ArrowLeft':  // 샷클락 -1초
+                    e.preventDefault(); setShotClockPaused(true);
+                    setShotClock(s => Math.max(0, Number((s - 1).toFixed(1)))); return;
+                default: break;
+            }
+
+            if (e.repeat) return;   // 이하 동작은 키 홀드 자동반복 차단 (점수 폭주 방지)
+
+            switch (e.key) {
+                // ── 왼손 = A팀 ──
+                case 'q': case 'Q': setTeamAScore(s => s + 1); break;            // +1점
+                case 'w': case 'W': setTeamAScore(s => s + 2); break;            // +2점
+                case 'a': case 'A': setTeamAScore(s => Math.max(0, s - 1)); break; // 정정 -1
+                case 's': case 'S': setTeamAFouls(f => f + 1); break;            // 파울 +1
+                case 'z': case 'Z': setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // 타임아웃
+
+                // ── 오른손 = B팀 ──
+                case 'p': case 'P': setTeamBScore(s => s + 1); break;
+                case 'o': case 'O': setTeamBScore(s => s + 2); break;
+                case 'l': case 'L': setTeamBScore(s => Math.max(0, s - 1)); break;
+                case 'k': case 'K': setTeamBFouls(f => f + 1); break;
+                case 'm': case 'M': setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break;
+
+                // ── 공통 / 중앙 ──
+                case ' ':           // Space: 게임클락 시작/정지 (엄지)
+                    e.preventDefault();
+                    setTimerRunning(r => !r);
+                    break;
+                case 'f': case 'F': // 샷클락 12초 리셋 + 재개 (왼손 검지 홈버튼)
+                case 'j': case 'J': // 샷클락 12초 리셋 + 재개 (오른손 검지 홈버튼)
+                    setShotClock(12);
+                    setShotClockPaused(false);
+                    break;
+                case 'r': case 'R': // 게임클락 10:00 리셋
+                    setTimerRunning(false);
+                    setGameTime(600);
+                    break;
+                case 'b': case 'B': // 수동 부저
+                    playBuzzer();
+                    break;
+                default: break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [liveMatch, showEditTime, showKbdGuide]);
+
+    // ── 키보드 안내 오버레이: 전광판(라이브) 첫 진입 시 대회당 1회 ──
+    useEffect(() => {
+        if (!liveMatch) { setShowKbdGuide(false); return; }
+        const tid = liveMatch.tournament_id || 'local';
+        const key = 'gritlab_kbd_guide_v1_' + tid;
+        if (!localStorage.getItem(key)) setShowKbdGuide(true);
+    }, [liveMatch]);
+
+    const closeKbdGuide = () => {
+        if (liveMatch) {
+            const tid = liveMatch.tournament_id || 'local';
+            localStorage.setItem('gritlab_kbd_guide_v1_' + tid, '1');
+        }
+        setShowKbdGuide(false);
+    };
 
     // ── 대회 CRUD ──
     const handleCreateTournament = async () => {
@@ -685,6 +780,9 @@ export default function ThreeVThreeAdmin() {
                     </div>
                     </div>
                 </main>
+
+                {/* 키보드 단축키 안내 (대회당 1회) */}
+                {showKbdGuide && <KeyboardGuide onClose={closeKbdGuide} />}
 
                 {/* 롱프레스 모달: 시간 설정 */}
                 {showEditTime && (
