@@ -268,6 +268,10 @@
   .game-row .gsc.lose { color: var(--red); }
   .game-row .gvs { font-family: var(--display); font-size: 12px; color: var(--navy); }
   .game-row.pending { opacity: .55; }
+  .game-row.clickable { cursor: pointer; transition: box-shadow .12s, background .12s; }
+  .game-row.clickable:hover { background: var(--cream-2); box-shadow: inset 0 0 0 2px var(--orange); }
+  .game-row .golive { font-family: var(--display); font-size: 10px; letter-spacing: .08em; color: var(--orange); margin-left: 8px; opacity: 0; transition: opacity .12s; white-space: nowrap; }
+  .game-row.clickable:hover .golive { opacity: 1; }
 
   /* ---------- Builder: format ---------- */
   .controls { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-end; }
@@ -394,6 +398,15 @@
     margin-left: 8px;
     vertical-align: middle;
   }
+  /* 예선 순위표 드래그 정렬 */
+  .reorder-hint { font-family: var(--ui); font-size: 11px; font-weight: 500; color: #8ea0c2; letter-spacing: 0; margin-left: 10px; }
+  .reorder-hint .reset-order { color: var(--orange); text-decoration: none; }
+  .reorder-hint .reset-order:hover { text-decoration: underline; }
+  table.standing td.rank-cell { font-family: var(--display); color: #8ea0c2; width: 30px; }
+  tr.standing-row { cursor: grab; transition: background .12s, box-shadow .12s; }
+  tr.standing-row:hover { background: rgba(238,124,27,0.06); }
+  tr.standing-row.dragging { opacity: .4; }
+  tr.standing-row.drag-over td { box-shadow: inset 0 2px 0 var(--orange); }
 
   .games { display: flex; flex-direction: column; gap: 14px; }
   .game-card { background: var(--cream); padding: 14px 16px 12px; }
@@ -606,6 +619,7 @@
       <button id="navTournaments" class="active" onclick="showView('tournaments')">TOURNAMENTS</button>
       <button id="navBuilder" onclick="showView('builder')">BUILDER</button>
       <button id="navLive" onclick="location.href='/threevthree/admin'" title="라이브 전광판(키보드 조작) — 실제 경기 기록" style="color:#34c13e">🔴 라이브 전광판</button>
+      <button id="navKbdGuide" onclick="openKbdImg()" title="키보드 전광판 조작 안내">⌨ 조작 안내</button>
       <span id="authEmail" style="font-family:var(--ui);font-size:12px;color:#8ea0c2;align-self:center;letter-spacing:0;font-weight:400"></span>
       <button id="navLogout" onclick="logout()" style="color:#8ea0c2">LOGOUT</button>
     </div>
@@ -728,6 +742,13 @@
   </div>
 </div>
 
+<!-- 키보드 조작 안내 이미지 모달 (사진 클릭 시 닫힘) -->
+<div id="kbdImgModal" onclick="closeKbdImg()"
+     style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(7,9,14,0.9);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;cursor:zoom-out">
+  <img src="/keyboard-guide.png" alt="키보드 전광판 조작 안내"
+       style="max-width:96vw;max-height:92vh;border:2px solid rgba(233,225,202,0.4);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6)">
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js"></script>
 <script>
 /* ===========================================================
@@ -748,6 +769,7 @@ let S = {                      // 빌더 상태
   teams: [],
   assign: {},
   groupGames: [],
+  manualOrder: {},             // [groupIdx] = [teamId,...] 운영자 수동 순위(있으면 자동정렬 override)
   bracket: null
 };
 
@@ -763,6 +785,11 @@ const roundLabel = r => ROUND_LABELS[r] || r;
 /* ===========================================================
    VIEW 전환
    =========================================================== */
+/* 키보드 조작 안내 이미지 모달 (inline display 직접 토글 — .hidden 클래스 우선순위 충돌 방지) */
+function openKbdImg(){ document.getElementById('kbdImgModal').style.display = 'flex'; }
+function closeKbdImg(){ document.getElementById('kbdImgModal').style.display = 'none'; }
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeKbdImg(); });
+
 function showView(view){
   document.getElementById('viewTournaments').classList.toggle('hidden', view !== 'tournaments');
   document.getElementById('viewBuilder').classList.toggle('hidden', view !== 'builder');
@@ -943,14 +970,20 @@ function renderTournamentResult(matches){
       const done = m.status === 'ENDED' || m.winner;
       const aWin = m.winner === 'A_WIN', bWin = m.winner === 'B_WIN';
       const row = document.createElement('div');
-      row.className = 'game-row' + (done ? '' : ' pending');
+      row.className = 'game-row clickable' + (done ? '' : ' pending');
+      row.title = '클릭하면 라이브 전광판에서 이 경기를 기록';
       row.innerHTML = `
         <span class="gnum">${m.match_order}</span>
-        <span class="gteam">${escapeHtml(m.team_a_name || '미정')}</span>
+        <span class="gteam">${escapeHtml(m.team_a_name || '미정')}<span class="golive">🔴 전광판</span></span>
         <span class="gsc ${aWin ? 'win' : bWin ? 'lose' : ''}">${m.team_a_score ?? 0}</span>
         <span class="gvs">VS</span>
         <span class="gsc ${bWin ? 'win' : aWin ? 'lose' : ''}">${m.team_b_score ?? 0}</span>
         <span class="gteam r">${escapeHtml(m.team_b_name || '미정')}</span>`;
+      // 경기 클릭 → 해당 경기를 라이브 전광판에서 기록 (sessionStorage로 match 전달)
+      row.onclick = () => {
+        sessionStorage.setItem('gritlab_autostart_match', m.id);
+        location.href = '/tournament/manage-3v3/' + m.tournament_id;
+      };
       rows.appendChild(row);
     });
     block.appendChild(rows);
@@ -1067,7 +1100,7 @@ function bindBuilderToTournament(t){
   S = {
     tournamentId: t.id, tournamentName: t.title,
     numTeams: 8, numGroups: 2,
-    teams: [], assign: {}, groupGames: [], bracket: null
+    teams: [], assign: {}, groupGames: [], manualOrder: {}, bracket: null
   };
   currentStep = 1;
   document.getElementById('bindName').textContent = t.title;
@@ -1307,9 +1340,36 @@ function standings(g){
     if(sa > sb_){ stat[m.aId].w++; stat[m.bId].l++; }
     else        { stat[m.bId].w++; stat[m.aId].l++; }
   });
-  return Object.values(stat).sort((x, y) =>
+  const arr = Object.values(stat);
+  // 운영자 수동 순위가 있으면 그대로 사용, 없으면 자동 정렬(승수→득실차→다득점)
+  const manual = S.manualOrder[g];
+  if(manual && manual.length){
+    return arr.sort((a, b) => {
+      const ia = manual.indexOf(a.id), ib = manual.indexOf(b.id);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  }
+  return arr.sort((x, y) =>
     y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf
   );
+}
+
+// 예선 순위표 수동 순서 변경 (드래그) — 진출팀 시딩에 반영
+function reorderStanding(g, dragTid, dropTid){
+  if(dragTid === dropTid) return;
+  const cur = standings(g).map(r => r.id); // 현재 표시 순서
+  const from = cur.indexOf(dragTid), to = cur.indexOf(dropTid);
+  if(from === -1 || to === -1) return;
+  cur.splice(from, 1);
+  cur.splice(to, 0, dragTid);
+  S.manualOrder[g] = cur;
+  S.bracket = null;            // 순서 바뀌면 본선 리셋
+  renderGroupStage();
+}
+function resetStandingOrder(g){
+  delete S.manualOrder[g];
+  S.bracket = null;
+  renderGroupStage();
 }
 
 function qualSlotsPerGroup(){
@@ -1415,6 +1475,7 @@ function initTeams(){
     S.teams = Array.from({ length: S.numTeams }, (_, i) => ({ id: i + 1, name: '팀 ' + (i + 1) }));
     S.assign = {};
     S.groupGames = [];
+    S.manualOrder = {};
     S.bracket = null;
   }
 }
@@ -1456,7 +1517,7 @@ function dropTeam(e, g){
   document.querySelectorAll('.group-box').forEach(x => x.classList.remove('over'));
   const id = +e.dataTransfer.getData('id');
   if(g === -1) delete S.assign[id]; else S.assign[id] = g;
-  S.groupGames = []; S.bracket = null;
+  S.groupGames = []; S.manualOrder = {}; S.bracket = null;
   renderAssign();
 }
 function randomAssign(){
@@ -1472,10 +1533,10 @@ function randomAssign(){
   for(let g = 0; g < S.numGroups; g++)
     for(let k = 0; k < sizes[g]; k++)
       S.assign[shuffled[idx++].id] = g;
-  S.groupGames = []; S.bracket = null;
+  S.groupGames = []; S.manualOrder = {}; S.bracket = null;
   renderAssign();
 }
-function clearAssign(){ S.assign = {}; S.groupGames = []; S.bracket = null; renderAssign(); }
+function clearAssign(){ S.assign = {}; S.groupGames = []; S.manualOrder = {}; S.bracket = null; renderAssign(); }
 
 /* ---------------- STEP 3 ---------------- */
 function renderGroupStage(){
@@ -1486,15 +1547,17 @@ function renderGroupStage(){
   for(let g = 0; g < S.numGroups; g++){
     const box = document.createElement('div');
     box.className = 'stage-group';
-    box.innerHTML = `<h3>GROUP ${GLAB(g)}</h3>`;
+    const manualOn = !!(S.manualOrder[g] && S.manualOrder[g].length);
+    box.innerHTML = `<h3>GROUP ${GLAB(g)}<span class="reorder-hint">↕ 행을 드래그해 진출팀 순서 조정${manualOn ? ` · <a href="#" class="reset-order" data-g="${g}">↺ 자동순위</a>` : ''}</span></h3>`;
     const cols = document.createElement('div'); cols.className = 'stage-cols';
 
     const rows = standings(g);
-    let tbl = `<table class="standing"><thead><tr><th>TEAM</th><th>WIN</th><th>LOSS</th><th>+/–</th></tr></thead><tbody>`;
+    let tbl = `<table class="standing"><thead><tr><th>#</th><th>TEAM</th><th>WIN</th><th>LOSS</th><th>+/–</th></tr></thead><tbody>`;
     rows.forEach((r, rank) => {
       const pm = r.pf - r.pa;
       const qual = rank < slots[g];
-      tbl += `<tr class="${qual ? 'qual' : ''}">
+      tbl += `<tr class="standing-row ${qual ? 'qual' : ''}" draggable="true" data-tid="${r.id}" title="드래그해 순위 변경">
+        <td class="rank-cell">${rank + 1}</td>
         <td class="team-cell">${escapeHtml(teamName(r.id))}${qual ? '<span class="qmark">진출</span>' : ''}</td>
         <td>${r.w}</td><td>${r.l}</td>
         <td class="${pm > 0 ? 'pos' : pm < 0 ? 'neg' : ''}">${pm > 0 ? '+' + pm : pm}</td>
@@ -1502,6 +1565,16 @@ function renderGroupStage(){
     });
     tbl += `</tbody></table>`;
     const left = document.createElement('div'); left.innerHTML = tbl;
+    // 순위 행 드래그 → 진출팀 순서 수동 조정
+    left.querySelectorAll('tr.standing-row').forEach(tr => {
+      tr.ondragstart = e => { e.dataTransfer.setData('tid', tr.dataset.tid); tr.classList.add('dragging'); };
+      tr.ondragend = () => tr.classList.remove('dragging');
+      tr.ondragover = e => { e.preventDefault(); tr.classList.add('drag-over'); };
+      tr.ondragleave = () => tr.classList.remove('drag-over');
+      tr.ondrop = e => { e.preventDefault(); tr.classList.remove('drag-over'); reorderStanding(g, +e.dataTransfer.getData('tid'), +tr.dataset.tid); };
+    });
+    const resetLink = box.querySelector('.reset-order');
+    if(resetLink) resetLink.onclick = (e) => { e.preventDefault(); resetStandingOrder(g); };
 
     const right = document.createElement('div'); right.className = 'games';
     S.groupGames.filter(m => m.g === g).forEach((m, i) => {
