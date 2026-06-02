@@ -679,6 +679,7 @@
         <div class="controls">
           <div class="field-wrap"><label>참가 팀 수</label><input class="field" id="numTeams" type="number" min="4" max="32" value="8"></div>
           <div class="field-wrap"><label>조 수</label><input class="field" id="numGroups" type="number" min="1" max="8" value="2"></div>
+          <div class="field-wrap"><label>팀당 경기 수 (0=풀리그)</label><input class="field" id="gamesPerTeam" type="number" min="0" max="20" value="0"></div>
         </div>
         <div class="preview" id="formatPreview"></div>
         <div class="row-actions">
@@ -766,6 +767,7 @@ let S = {                      // 빌더 상태
   tournamentId: null,          // 빌더가 바인딩된 대회
   tournamentName: '',
   numTeams: 8, numGroups: 2,
+  gamesPerTeam: 0,             // 팀당 경기 수 (0 = 풀리그). >0 이면 라운드 로빈 앞쪽으로 부분 생성
   teams: [],
   assign: {},
   groupGames: [],
@@ -1099,7 +1101,7 @@ function bindBuilderToTournament(t){
   // 새 대회 바인딩 → 빌더 상태 초기화
   S = {
     tournamentId: t.id, tournamentName: t.title,
-    numTeams: 8, numGroups: 2,
+    numTeams: 8, numGroups: 2, gamesPerTeam: 0,
     teams: [], assign: {}, groupGames: [], manualOrder: {}, bracket: null
   };
   currentStep = 1;
@@ -1107,6 +1109,7 @@ function bindBuilderToTournament(t){
   document.getElementById('saveState').textContent = '';
   document.getElementById('numTeams').value = 8;
   document.getElementById('numGroups').value = 2;
+  document.getElementById('gamesPerTeam').value = 0;
 }
 
 // ACTIVE 대회를 빌더로 불러오기 (이어서 작성)
@@ -1316,13 +1319,42 @@ function groupSizes(n, g){
   return Array.from({ length: g }, (_, i) => base + (i < rem ? 1 : 0));
 }
 
+// 라운드 로빈 라운드 생성 (circle method). 홀수면 bye(null) 포함.
+function roundRobinRounds(ids){
+  const arr = ids.length % 2 ? [...ids, null] : [...ids];
+  const m = arr.length, rounds = [];
+  for(let r = 0; r < m - 1; r++){
+    const round = [];
+    for(let i = 0; i < m / 2; i++){
+      const a = arr[i], b = arr[m - 1 - i];
+      if(a != null && b != null) round.push([a, b]);
+    }
+    rounds.push(round);
+    arr.splice(1, 0, arr.pop()); // arr[0] 고정한 채 회전
+  }
+  return rounds;
+}
+// 한 조의 경기 짝 생성. gamesPerTeam>0 이면 팀당 최소 그 경기 수 보장(라운드 단위), 0이면 풀리그.
+function groupSchedule(ids, gamesPerTeam){
+  if(ids.length < 2) return [];
+  const rounds = roundRobinRounds(ids);
+  const full = !gamesPerTeam || gamesPerTeam <= 0;
+  const count = {}; ids.forEach(id => count[id] = 0);
+  const pairs = [];
+  for(const round of rounds){
+    // 풀리그가 아니고 모든 팀이 목표 경기 수를 채웠으면 중단 (최소 X 보장 → 일부는 X+1 가능)
+    if(!full && ids.every(id => count[id] >= gamesPerTeam)) break;
+    for(const [a, b] of round){ pairs.push([a, b]); count[a]++; count[b]++; }
+  }
+  return pairs;
+}
 function buildGroupGames(){
   const games = []; let gid = 1;
   for(let g = 0; g < S.numGroups; g++){
     const ids = S.teams.filter(t => S.assign[t.id] === g).map(t => t.id);
-    for(let i = 0; i < ids.length; i++)
-      for(let j = i + 1; j < ids.length; j++)
-        games.push({ id: gid++, g, aId: ids[i], bId: ids[j], sa: '', sb: '' });
+    groupSchedule(ids, S.gamesPerTeam).forEach(([a, b]) => {
+      games.push({ id: gid++, g, aId: a, bId: b, sa: '', sb: '' });
+    });
   }
   S.groupGames = games;
 }
@@ -1455,19 +1487,31 @@ function swapBracketSlots(fromMatch, fromSide, toMatch, toSide){
 function readFormat(){
   S.numTeams = Math.max(4, +document.getElementById('numTeams').value || 4);
   S.numGroups = Math.max(1, +document.getElementById('numGroups').value || 1);
+  S.gamesPerTeam = Math.max(0, +document.getElementById('gamesPerTeam').value || 0);
   if(S.numGroups > S.numTeams) S.numGroups = S.numTeams;
 }
 function renderFormatPreview(){
   readFormat();
   const sizes = groupSizes(S.numTeams, S.numGroups);
-  const totalGames = sizes.reduce((sum, sz) => sum + sz * (sz - 1) / 2, 0);
+  // 실제 스케줄 기준 경기 수 (팀당 경기 수 반영)
+  const totalGames = sizes.reduce((sum, sz) => {
+    const ids = Array.from({ length: sz }, (_, i) => i);
+    return sum + groupSchedule(ids, S.gamesPerTeam).length;
+  }, 0);
   const el = document.getElementById('formatPreview');
   el.innerHTML = '';
   sizes.forEach((sz, i) => el.innerHTML += `<span class="pchip">${GLAB(i)}조 · ${sz}팀</span>`);
+  el.innerHTML += S.gamesPerTeam > 0
+    ? `<span class="pchip">팀당 ${S.gamesPerTeam}경기 보장</span>`
+    : `<span class="pchip">풀리그(전체)</span>`;
   el.innerHTML += `<span class="pchip">예선 ${totalGames}경기</span>`;
   el.innerHTML += `<span class="pchip fixed">본선 4강 고정</span>`;
 }
-['numTeams', 'numGroups'].forEach(id => document.getElementById(id).addEventListener('input', renderFormatPreview));
+['numTeams', 'numGroups', 'gamesPerTeam'].forEach(id => document.getElementById(id).addEventListener('input', () => {
+  // 포맷이 바뀌면 생성된 예선/순위/본선 무효화 후 미리보기 갱신
+  S.groupGames = []; S.manualOrder = {}; S.bracket = null;
+  renderFormatPreview();
+}));
 
 /* ---------------- STEP 2 ---------------- */
 function initTeams(){
