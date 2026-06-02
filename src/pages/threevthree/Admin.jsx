@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard } from 'lucide-react';
 import styles from './scoreboard.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -464,6 +464,16 @@ export default function ThreeVThreeAdmin() {
         setTimerRunning(false);
     };
 
+    // ── 대회 페이지(tournament.html)에서 경기 클릭 → 자동 기록시작 ──
+    // tournament.html이 sessionStorage에 match id를 넣고 이 페이지로 이동시킨다.
+    useEffect(() => {
+        const mid = sessionStorage.getItem('gritlab_autostart_match');
+        if (!mid || liveMatch || !allMatches.length) return;
+        const m = allMatches.find(x => String(x.id) === String(mid));
+        sessionStorage.removeItem('gritlab_autostart_match'); // 1회성 소비
+        if (m) startLiveRecord(m);
+    }, [allMatches]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── 라이브 기록 저장 & 닫기 ──
     const saveLiveAndClose = async () => {
         if (!liveMatch) return;
@@ -542,6 +552,9 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     <div className={styles.headerRight}>
+                        <button className={styles.iconBtn} onClick={() => setShowKbdGuide(true)} title="키보드 조작 안내">
+                            <Keyboard size={20} />
+                        </button>
                         <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
                             <BellRing size={20} />
                         </button>
