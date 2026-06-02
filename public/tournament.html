@@ -743,8 +743,8 @@
 </div>
 
 <!-- 키보드 조작 안내 이미지 모달 (사진 클릭 시 닫힘) -->
-<div id="kbdImgModal" class="hidden" onclick="closeKbdImg()"
-     style="position:fixed;inset:0;z-index:10000;background:rgba(7,9,14,0.9);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out">
+<div id="kbdImgModal" onclick="closeKbdImg()"
+     style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(7,9,14,0.9);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;cursor:zoom-out">
   <img src="/keyboard-guide.png" alt="키보드 전광판 조작 안내"
        style="max-width:96vw;max-height:92vh;border:2px solid rgba(233,225,202,0.4);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6)">
 </div>
@@ -785,9 +785,9 @@ const roundLabel = r => ROUND_LABELS[r] || r;
 /* ===========================================================
    VIEW 전환
    =========================================================== */
-/* 키보드 조작 안내 이미지 모달 */
-function openKbdImg(){ document.getElementById('kbdImgModal').classList.remove('hidden'); }
-function closeKbdImg(){ document.getElementById('kbdImgModal').classList.add('hidden'); }
+/* 키보드 조작 안내 이미지 모달 (inline display 직접 토글 — .hidden 클래스 우선순위 충돌 방지) */
+function openKbdImg(){ document.getElementById('kbdImgModal').style.display = 'flex'; }
+function closeKbdImg(){ document.getElementById('kbdImgModal').style.display = 'none'; }
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeKbdImg(); });
 
 function showView(view){
