@@ -306,10 +306,11 @@ export default function ThreeVThreeAdmin() {
             const tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
 
-            // ── 시간 +/- 조정 (데드타임에 멈춰서 미세 조정) ──
-            // 터치 버튼과 동일: 게임클락은 정지 후, 샷클락은 일시정지 후 가감.
-            // 방향키는 홀드 시 자동반복(빠른 스크럽) 허용 — 아래 e.repeat 차단 대상에서 제외
-            switch (e.key) {
+            // ⚠️ e.code(물리 키 위치) 사용 — 한글 입력 상태/키보드 레이아웃과 무관하게 동작.
+            //    e.key는 한글모드에서 'ㅂ'/'ㅈ'/'ㄹ' 또는 'Process'로 들어와 매칭 실패함.
+
+            // ── 시간 +/- 조정 (방향키, 홀드 시 빠른 스크럽 허용) ──
+            switch (e.code) {
                 case 'ArrowUp':    // 게임클락 +1초
                     e.preventDefault(); setTimerRunning(false);
                     setGameTime(t => Number((t + 1).toFixed(1))); return;
@@ -327,36 +328,36 @@ export default function ThreeVThreeAdmin() {
 
             if (e.repeat) return;   // 이하 동작은 키 홀드 자동반복 차단 (점수 폭주 방지)
 
-            switch (e.key) {
+            switch (e.code) {
                 // ── 왼손 = A팀 ──
-                case 'q': case 'Q': setTeamAScore(s => s + 1); break;            // +1점
-                case 'w': case 'W': setTeamAScore(s => s + 2); break;            // +2점
-                case 'a': case 'A': setTeamAScore(s => Math.max(0, s - 1)); break; // 정정 -1
-                case 's': case 'S': setTeamAFouls(f => f + 1); break;            // 파울 +1
-                case 'z': case 'Z': setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // 타임아웃
+                case 'KeyQ': setTeamAScore(s => s + 1); break;                  // +1점
+                case 'KeyW': setTeamAScore(s => s + 2); break;                  // +2점
+                case 'KeyA': setTeamAScore(s => Math.max(0, s - 1)); break;     // 정정 -1
+                case 'KeyS': setTeamAFouls(f => f + 1); break;                  // 파울 +1
+                case 'KeyZ': setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // 타임아웃
 
                 // ── 오른손 = B팀 ──
-                case 'p': case 'P': setTeamBScore(s => s + 1); break;
-                case 'o': case 'O': setTeamBScore(s => s + 2); break;
-                case 'l': case 'L': setTeamBScore(s => Math.max(0, s - 1)); break;
-                case 'k': case 'K': setTeamBFouls(f => f + 1); break;
-                case 'm': case 'M': setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break;
+                case 'KeyP': setTeamBScore(s => s + 1); break;
+                case 'KeyO': setTeamBScore(s => s + 2); break;
+                case 'KeyL': setTeamBScore(s => Math.max(0, s - 1)); break;
+                case 'KeyK': setTeamBFouls(f => f + 1); break;
+                case 'KeyM': setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break;
 
                 // ── 공통 / 중앙 ──
-                case ' ':           // Space: 게임클락 시작/정지 (엄지)
+                case 'Space':       // 게임클락 시작/정지 (엄지)
                     e.preventDefault();
                     setTimerRunning(r => !r);
                     break;
-                case 'f': case 'F': // 샷클락 12초 리셋 + 재개 (왼손 검지 홈버튼)
-                case 'j': case 'J': // 샷클락 12초 리셋 + 재개 (오른손 검지 홈버튼)
+                case 'KeyF':        // 샷클락 12초 리셋 + 재개 (왼손 검지 홈버튼)
+                case 'KeyJ':        // 샷클락 12초 리셋 + 재개 (오른손 검지 홈버튼)
                     setShotClock(12);
                     setShotClockPaused(false);
                     break;
-                case 'r': case 'R': // 게임클락 10:00 리셋
+                case 'KeyR':        // 게임클락 10:00 리셋
                     setTimerRunning(false);
                     setGameTime(600);
                     break;
-                case 'b': case 'B': // 수동 부저
+                case 'KeyB':        // 수동 부저
                     playBuzzer();
                     break;
                 default: break;
