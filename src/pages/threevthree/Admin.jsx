@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard } from 'lucide-react';
-import styles from './scoreboard.module.css';
+import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
 // ── 롱프레스 감지 훅 (Scoreboard.jsx와 동일) ──
@@ -177,6 +177,11 @@ export default function ThreeVThreeAdmin() {
     const shotClockLastTapRef = useRef(0);
     const [showEditTime, setShowEditTime] = useState(false);
     const [showKbdGuide, setShowKbdGuide] = useState(false); // 키보드 안내 오버레이 (대회당 1회)
+    // ── 인터미션(경기 종료 후 다음 경기 안내 카운트다운) ──
+    const [showIntermission, setShowIntermission] = useState(false);
+    const [intermissionSec, setIntermissionSec] = useState(90);
+    const [intermissionRunning, setIntermissionRunning] = useState(true);
+    const [intermissionNext, setIntermissionNext] = useState(null);
     const [editTarget, setEditTarget] = useState(null);
     const [tempMins, setTempMins] = useState(0);
     const [tempSecs, setTempSecs] = useState(0);
@@ -475,16 +480,53 @@ export default function ThreeVThreeAdmin() {
         if (m) startLiveRecord(m);
     }, [allMatches]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── 라이브 기록 저장 & 닫기 ──
+    // ── 다음 경기 찾기: 순서상 다음 PENDING(팀명 있는) 경기, 현재 제외 ──
+    const findNextMatch = (currentId) => {
+        return allMatches.find(m =>
+            m.id !== currentId && m.status !== 'ENDED' && m.team_a_name && m.team_b_name
+        ) || null;
+    };
+
+    // ── 라이브 기록 저장 → 인터미션(다음 경기 안내) ──
     const saveLiveAndClose = async () => {
         if (!liveMatch) return;
-        // 로컬 상태 → match 데이터에 반영
+        // 1) 기존 저장 로직 그대로
         const updated = { ...liveMatch, team_a_score: teamAScore, team_b_score: teamBScore };
         updateMatch(liveMatch.id, 'team_a_score', teamAScore);
         updateMatch(liveMatch.id, 'team_b_score', teamBScore);
         await handleSaveMatch(updated);
         setTimerRunning(false);
+        // 2) 저장 성공 후 → 인터미션 화면으로 전환 (90초 카운트다운)
+        setIntermissionNext(findNextMatch(liveMatch.id));
+        setIntermissionSec(90);
+        setIntermissionRunning(true);
         setLiveMatch(null);
+        setShowIntermission(true);
+    };
+
+    // 인터미션 카운트다운 (1초 감소)
+    useEffect(() => {
+        if (!showIntermission || !intermissionRunning) return;
+        const t = setInterval(() => setIntermissionSec(s => Math.max(0, s - 1)), 1000);
+        return () => clearInterval(t);
+    }, [showIntermission, intermissionRunning]);
+
+    // 0초 도달 → 다음 경기 전광판 자동 전환 (없으면 종료 화면 유지)
+    useEffect(() => {
+        if (!showIntermission || intermissionSec !== 0) return;
+        playBuzzer();
+        if (intermissionNext) {
+            setShowIntermission(false);
+            startLiveRecord(intermissionNext);
+        } else {
+            setIntermissionRunning(false);
+        }
+    }, [showIntermission, intermissionSec]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 인터미션 제어
+    const startNextNow = () => {
+        setShowIntermission(false);
+        if (intermissionNext) startLiveRecord(intermissionNext);
     };
 
     const closeLiveWithoutSave = () => {
@@ -514,6 +556,62 @@ export default function ThreeVThreeAdmin() {
 
     if (loading) {
         return <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-gray-500">Loading...</div>;
+    }
+
+    // ═══════════════════════════════════
+    //  인터미션 (경기 종료 후 다음 경기 안내 카운트다운) — GRIT LAB 3X3 톤
+    // ═══════════════════════════════════
+    if (showIntermission) {
+        const mm = String(Math.floor(intermissionSec / 60)).padStart(2, '0');
+        const ss = String(intermissionSec % 60).padStart(2, '0');
+        const nx = intermissionNext;
+        const nxRound = nx ? (ROUNDS.find(r => r.id === nx.round)?.label || nx.round) : null;
+        const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
+        const anton = "'Anton', 'Pretendard', sans-serif";
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 32,
+                background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton }}>
+                <div style={{ fontSize: 16, letterSpacing: '.3em', color: C.muted }}>{nx ? '다음 경기까지' : 'INTERMISSION'}</div>
+
+                {/* 카운트다운 */}
+                <div style={{ fontSize: 'clamp(90px, 20vw, 220px)', lineHeight: .9, color: intermissionSec <= 10 ? C.orange : C.cream, fontVariantNumeric: 'tabular-nums' }}>
+                    {mm}:{ss}
+                </div>
+
+                {/* 다음 경기 정보 */}
+                {nx ? (
+                    <div style={{ textAlign: 'center', border: `2px solid ${C.line}`, background: C.navy2, padding: '22px 40px', minWidth: 'min(760px, 92vw)' }}>
+                        <div style={{ fontSize: 14, letterSpacing: '.2em', color: C.orange, marginBottom: 14 }}>
+                            NEXT · {nxRound} · GAME {nx.match_order}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+                            <div style={{ flex: 1, fontSize: 'clamp(28px, 5vw, 56px)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nx.team_a_name || '팀 A'}</div>
+                            <div style={{ fontSize: 22, color: C.muted }}>VS</div>
+                            <div style={{ flex: 1, fontSize: 'clamp(28px, 5vw, 56px)', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nx.team_b_name || '팀 B'}</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', border: `2px solid ${C.orange}`, padding: '24px 48px' }}>
+                        <div style={{ fontSize: 44 }}>🏆 모든 경기 종료</div>
+                        <div style={{ fontSize: 14, letterSpacing: '.16em', color: C.muted, marginTop: 8 }}>대진표의 모든 경기가 끝났습니다</div>
+                    </div>
+                )}
+
+                {/* 진행자 제어 */}
+                <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+                    {nx && (
+                        <button onClick={() => setIntermissionRunning(r => !r)}
+                            style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 28px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
+                            {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
+                        </button>
+                    )}
+                    <button onClick={startNextNow}
+                        style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 30px', border: 'none', background: nx ? C.green : C.orange, color: '#0c1a0e', cursor: 'pointer' }}>
+                        {nx ? '지금 시작 →' : '관리 화면으로'}
+                    </button>
+                </div>
+            </div>
+        );
     }
 
     // ═══════════════════════════════════
@@ -830,7 +928,7 @@ export default function ThreeVThreeAdmin() {
     //  메인 Admin 뷰
     // ═══════════════════════════════════
     return (
-        <div className="min-h-screen bg-[#07090e] text-white font-sans">
+        <div className="min-h-screen bg-[#07090e] text-white" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>
             {/* Header */}
             <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#07090e]/80 backdrop-blur sticky top-0 z-50">
                 <div className="flex items-center gap-4">
