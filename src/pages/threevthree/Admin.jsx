@@ -57,9 +57,9 @@ const ROUNDS = [
 ];
 
 const statusColor = (s) => {
-    if (s === 'ENDED') return '#ef4444';
-    if (s === 'LIVE') return '#22c55e';
-    return '#6b7280';
+    if (s === 'ENDED') return '#d8302c'; // GRIT LAB red
+    if (s === 'LIVE') return '#34c13e';  // GRIT LAB green
+    return '#33456a';                    // navy-line
 };
 
 const formatTime = (totalSeconds) => {
@@ -555,7 +555,7 @@ export default function ThreeVThreeAdmin() {
     const shotClockLow = shotClock > 0 && shotClock < 5;
 
     if (loading) {
-        return <div className="min-h-screen bg-[#07090e] flex items-center justify-center text-gray-500">Loading...</div>;
+        return <div className="min-h-screen bg-[#16243f] flex items-center justify-center text-[#8ea0c2]" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>Loading...</div>;
     }
 
     // ═══════════════════════════════════
@@ -928,25 +928,25 @@ export default function ThreeVThreeAdmin() {
     //  메인 Admin 뷰
     // ═══════════════════════════════════
     return (
-        <div className="min-h-screen bg-[#07090e] text-white" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>
+        <div className="min-h-screen bg-[#16243f] text-[#e9e1ca]" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif", background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)' }}>
             {/* Header */}
-            <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-[#07090e]/80 backdrop-blur sticky top-0 z-50">
+            <header className="border-b-2 border-[#33456a] px-6 py-4 flex items-center justify-between bg-[#16243f]/85 backdrop-blur sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/tournament/dashboard')} className="text-gray-400 hover:text-white transition">
+                    <button onClick={() => navigate('/tournament/dashboard')} className="text-[#8ea0c2] hover:text-[#e9e1ca] transition">
                         <ArrowLeft size={20} />
                     </button>
-                    <h1 className="text-xl font-black italic tracking-tight">
-                        <span className="text-orange-400">GRIT LAB</span> 3:3 ADMIN
+                    <h1 className="text-xl tracking-[0.06em]">
+                        <span className="text-[#ee7c1b]">GRIT LAB</span> 3:3 ADMIN
                     </h1>
                 </div>
 
                 {activeTournament && (
                     <button
                         onClick={handleToggleStatus}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition ${
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm tracking-wider transition ${
                             activeTournament.status === 'ACTIVE'
-                                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
-                                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
+                                ? 'bg-[#d8302c]/20 text-[#f3b0ae] hover:bg-[#d8302c]/30 border border-[#d8302c]/40'
+                                : 'bg-[#34c13e]/20 text-[#9be3a3] hover:bg-[#34c13e]/30 border border-[#34c13e]/40'
                         }`}
                     >
                         <Power size={16} />
@@ -958,19 +958,19 @@ export default function ThreeVThreeAdmin() {
             <div className="max-w-5xl mx-auto p-6 space-y-6">
 
                 {/* 대회 선택 / 생성 */}
-                <section className="bg-[#0d111c] border border-white/8 rounded-2xl p-6 space-y-4">
-                    <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">대회 관리</h2>
+                <section className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4">
+                    <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">대회 관리</h2>
 
                     <div className="flex gap-3">
                         <input
-                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition"
+                            className="flex-1 bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
                             placeholder="새 3v3 대회명 (예: 2026.03 GritLab 3:3)"
                             value={newTitle}
                             onChange={e => setNewTitle(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleCreateTournament()}
                         />
                         <button onClick={handleCreateTournament}
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition">
+                            className="bg-[#ee7c1b] hover:brightness-110 text-white px-5 py-3 flex items-center gap-2 tracking-wider transition">
                             <Plus size={16} /> 생성
                         </button>
                     </div>
@@ -978,25 +978,25 @@ export default function ThreeVThreeAdmin() {
                     {tournaments.length > 0 && (
                         <div className="relative">
                             <select
-                                className="w-full appearance-none bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-10 text-white font-medium focus:outline-none focus:border-orange-500 transition cursor-pointer"
+                                className="w-full appearance-none bg-[#16243f] border-2 border-[#33456a] px-4 py-3 pr-10 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition cursor-pointer"
                                 value={activeTournamentId || ''}
                                 onChange={e => setActiveTournamentId(e.target.value)}
                             >
                                 {tournaments.map(t => (
-                                    <option key={t.id} value={t.id} className="bg-[#111]">
+                                    <option key={t.id} value={t.id} className="bg-[#16243f]">
                                         {t.type === '3V3' ? '[3v3] ' : ''}{t.title} {t.status === 'ACTIVE' ? '(진행중)' : '(종료)'}
                                     </option>
                                 ))}
                             </select>
-                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8ea0c2] pointer-events-none" />
                         </div>
                     )}
 
                     {activeTournament && (
                         <div className="flex items-center gap-3 text-sm">
-                            <div className={`w-2 h-2 rounded-full ${activeTournament.status === 'ACTIVE' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                            <span className="text-gray-400">
-                                {activeTournament.title} — <strong className={activeTournament.status === 'ACTIVE' ? 'text-green-400' : 'text-red-400'}>
+                            <div className={`w-2 h-2 rounded-full ${activeTournament.status === 'ACTIVE' ? 'bg-[#34c13e] animate-pulse' : 'bg-[#d8302c]'}`} />
+                            <span className="text-[#8ea0c2]">
+                                {activeTournament.title} — <strong className={activeTournament.status === 'ACTIVE' ? 'text-[#34c13e]' : 'text-[#f3b0ae]'}>
                                     {activeTournament.status === 'ACTIVE' ? '진행중' : '종료됨'}
                                 </strong>
                             </span>
@@ -1006,11 +1006,11 @@ export default function ThreeVThreeAdmin() {
 
                 {/* 라운드 탭 + 경기 관리 */}
                 {activeTournamentId && (
-                    <section className="bg-[#0d111c] border border-white/8 rounded-2xl p-6 space-y-4">
+                    <section className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">경기 관리</h2>
+                            <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">경기 관리</h2>
                             <button onClick={handleAddMatch}
-                                className="bg-white/10 hover:bg-white/15 text-white text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                                className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
                                 <Plus size={14} /> 경기 추가
                             </button>
                         </div>
@@ -1020,8 +1020,8 @@ export default function ThreeVThreeAdmin() {
                                 const count = allMatches.filter(m => m.round === r.id).length;
                                 return (
                                     <button key={r.id} onClick={() => setActiveRound(r.id)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition ${
-                                            activeRound === r.id ? 'bg-orange-500 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                        className={`px-4 py-2 text-sm whitespace-nowrap tracking-wider transition ${
+                                            activeRound === r.id ? 'bg-[#ee7c1b] text-white' : 'bg-[#16243f] text-[#8ea0c2] hover:text-[#e9e1ca]'
                                         }`}>
                                         {r.label} {count > 0 && <span className="ml-1 text-xs opacity-70">({count})</span>}
                                     </button>
@@ -1032,21 +1032,21 @@ export default function ThreeVThreeAdmin() {
                         {/* 경기 카드 */}
                         <div className="space-y-3">
                             {matches.length === 0 ? (
-                                <div className="text-center text-gray-500 py-12 border border-dashed border-white/10 rounded-xl">
+                                <div className="text-center text-[#8ea0c2] py-12 border-2 border-dashed border-[#33456a]">
                                     이 라운드에 등록된 경기가 없습니다.
                                 </div>
                             ) : (
                                 matches.map((match) => (
-                                    <div key={match.id} className="bg-white/5 border border-white/8 rounded-xl p-4 space-y-3">
+                                    <div key={match.id} className="bg-[#e9e1ca] border-2 border-[#33456a] p-4 space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-gray-500 uppercase">GAME {match.match_order}</span>
+                                            <span className="text-xs text-[#d8302c] uppercase tracking-[0.14em]">GAME {match.match_order}</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold px-2 py-1 rounded" style={{ color: statusColor(match.status), background: `${statusColor(match.status)}20` }}>
+                                                <span className="text-xs px-2 py-1 tracking-wider" style={{ color: match.status === 'LIVE' ? '#0c1a0e' : '#fff', background: statusColor(match.status) }}>
                                                     {match.status}
                                                 </span>
                                                 {match.winner && (
-                                                    <span className="text-xs font-bold text-yellow-400 flex items-center gap-1">
-                                                        <Trophy size={12} />
+                                                    <span className="text-xs text-[#16243f] flex items-center gap-1">
+                                                        <Trophy size={12} className="text-[#ee7c1b]" />
                                                         {match.winner === 'A_WIN' ? match.team_a_name : match.team_b_name}
                                                     </span>
                                                 )}
@@ -1056,16 +1056,16 @@ export default function ThreeVThreeAdmin() {
                                         {/* 팀/스코어 입력 */}
                                         <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
                                             <div className="space-y-2">
-                                                <input className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-center font-bold placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
+                                                <input className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
                                                     placeholder="팀 A" value={match.team_a_name} onChange={e => updateMatch(match.id, 'team_a_name', e.target.value)} />
-                                                <input type="number" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-3 text-white text-center text-2xl font-black placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
+                                                <input type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
                                                     value={match.team_a_score} onChange={e => updateMatch(match.id, 'team_a_score', parseInt(e.target.value) || 0)} />
                                             </div>
-                                            <div className="text-gray-500 font-black text-lg">VS</div>
+                                            <div className="text-[#16243f] text-lg">VS</div>
                                             <div className="space-y-2">
-                                                <input className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-center font-bold placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
+                                                <input className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
                                                     placeholder="팀 B" value={match.team_b_name} onChange={e => updateMatch(match.id, 'team_b_name', e.target.value)} />
-                                                <input type="number" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-3 text-white text-center text-2xl font-black placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
+                                                <input type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
                                                     value={match.team_b_score} onChange={e => updateMatch(match.id, 'team_b_score', parseInt(e.target.value) || 0)} />
                                             </div>
                                         </div>
@@ -1073,19 +1073,19 @@ export default function ThreeVThreeAdmin() {
                                         {/* 액션 버튼 */}
                                         <div className="flex gap-2 justify-between">
                                             <button onClick={() => handleDeleteMatch(match.id)} disabled={deleting === match.id}
-                                                className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition disabled:opacity-50">
+                                                className="text-[#d8302c] hover:brightness-110 text-sm flex items-center gap-1 px-4 py-2 bg-[#d8302c]/12 border-2 border-[#d8302c]/40 transition disabled:opacity-50 tracking-wider">
                                                 <Trash2 size={14} /> {deleting === match.id ? '삭제중...' : '삭제'}
                                             </button>
                                             <div className="flex gap-2">
                                                 {/* 라이브 기록 버튼 */}
                                                 {match.team_a_name && match.team_b_name && match.status !== 'ENDED' && (
                                                     <button onClick={() => startLiveRecord(match)}
-                                                        className="bg-green-500/20 hover:bg-green-500/30 text-green-400 text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2 border border-green-500/30 transition">
+                                                        className="bg-[#34c13e] hover:brightness-110 text-white text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
                                                         <Play size={14} /> 기록 시작
                                                     </button>
                                                 )}
                                                 <button onClick={() => handleSaveMatch(match)} disabled={saving === match.id}
-                                                    className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                                                    className="bg-[#ee7c1b] hover:brightness-110 disabled:opacity-50 text-white text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
                                                     <Save size={14} /> {saving === match.id ? '저장중...' : '저장'}
                                                 </button>
                                             </div>
@@ -1099,9 +1099,9 @@ export default function ThreeVThreeAdmin() {
 
                 {/* 토너먼트 브래킷 시각화 */}
                 {activeTournamentId && bracketRounds.length > 0 && (
-                    <section className="bg-[#0d111c] border border-white/8 rounded-2xl p-6 space-y-4">
-                        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-                            <Trophy size={14} className="inline mr-2 text-yellow-400" />
+                    <section className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4">
+                        <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">
+                            <Trophy size={14} className="inline mr-2 text-[#ee7c1b]" />
                             토너먼트 대진표
                         </h2>
                         <div className="overflow-x-auto">
@@ -1110,16 +1110,16 @@ export default function ThreeVThreeAdmin() {
                                     const roundMatches = allMatches.filter(m => m.round === round.id).sort((a, b) => a.match_order - b.match_order);
                                     return (
                                         <div key={round.id} className="flex flex-col gap-3 min-w-[200px]">
-                                            <h3 className="text-xs font-bold text-orange-400 uppercase tracking-widest text-center pb-2 border-b border-white/10">{round.label}</h3>
+                                            <h3 className="text-xs text-[#ee7c1b] uppercase tracking-[0.2em] text-center pb-2 border-b-2 border-[#33456a]">{round.label}</h3>
                                             {roundMatches.map(match => (
-                                                <div key={match.id} className={`border rounded-lg overflow-hidden text-sm ${match.status === 'ENDED' ? 'border-white/15' : 'border-white/8'}`}>
-                                                    <div className={`flex items-center justify-between px-3 py-2 ${match.winner === 'A_WIN' ? 'bg-orange-500/15 text-white' : 'bg-white/3 text-gray-400'}`}>
-                                                        <span className="font-bold truncate max-w-[120px]">{match.team_a_name || '—'}</span>
-                                                        <span className="font-black text-lg">{match.team_a_score}</span>
+                                                <div key={match.id} className="overflow-hidden text-sm">
+                                                    <div className={`flex items-center justify-between px-3 py-2 ${match.winner === 'A_WIN' ? 'bg-[#e9e1ca] text-[#16243f]' : 'bg-[#16243f] text-[#8ea0c2]'}`}>
+                                                        <span className="truncate max-w-[120px]">{match.team_a_name || '—'}</span>
+                                                        <span className="text-lg">{match.team_a_score}</span>
                                                     </div>
-                                                    <div className={`flex items-center justify-between px-3 py-2 border-t border-white/5 ${match.winner === 'B_WIN' ? 'bg-orange-500/15 text-white' : 'bg-white/3 text-gray-400'}`}>
-                                                        <span className="font-bold truncate max-w-[120px]">{match.team_b_name || '—'}</span>
-                                                        <span className="font-black text-lg">{match.team_b_score}</span>
+                                                    <div className={`flex items-center justify-between px-3 py-2 ${match.winner === 'B_WIN' ? 'bg-[#e9e1ca] text-[#16243f]' : 'bg-[#16243f] text-[#8ea0c2]'}`}>
+                                                        <span className="truncate max-w-[120px]">{match.team_b_name || '—'}</span>
+                                                        <span className="text-lg">{match.team_b_score}</span>
                                                     </div>
                                                 </div>
                                             ))}
