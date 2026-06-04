@@ -398,6 +398,7 @@
     margin-left: 8px;
     vertical-align: middle;
   }
+  table.standing td .qmark.wc { background: var(--orange); } /* 와일드카드 진출 */
   /* 예선 순위표 드래그 정렬 */
   .reorder-hint { font-family: var(--ui); font-size: 11px; font-weight: 500; color: #8ea0c2; letter-spacing: 0; margin-left: 10px; }
   .reorder-hint .reset-order { color: var(--orange); text-decoration: none; }
@@ -772,7 +773,8 @@ let S = {                      // 빌더 상태
   assign: {},
   groupGames: [],
   manualOrder: {},             // [groupIdx] = [teamId,...] 운영자 수동 순위(있으면 자동정렬 override)
-  bracket: null
+  bracket: null,
+  lastQual: null               // 마지막 본선 진출 계산 결과(와일드카드 근거/추첨여부) — bracketNote 표시용
 };
 
 const GLAB = i => String.fromCharCode(65 + i);
@@ -1395,42 +1397,101 @@ function reorderStanding(g, dragTid, dropTid){
   cur.splice(from, 1);
   cur.splice(to, 0, dragTid);
   S.manualOrder[g] = cur;
-  S.bracket = null;            // 순서 바뀌면 본선 리셋
+  S.bracket = null; S.lastQual = null;   // 순서 바뀌면 본선/진출계산 리셋
   renderGroupStage();
 }
 function resetStandingOrder(g){
   delete S.manualOrder[g];
-  S.bracket = null;
+  S.bracket = null; S.lastQual = null;
   renderGroupStage();
 }
 
-function qualSlotsPerGroup(){
-  const slots = Array(S.numGroups).fill(0);
-  const sizes = groupSizes(S.numTeams, S.numGroups);
-  let remain = 4, g = 0, rank = 0;
-  while(remain > 0 && rank < S.numTeams){
-    if(sizes[g] > rank){ slots[g]++; remain--; }
-    g++;
-    if(g >= S.numGroups){ g = 0; rank++; }
-  }
-  return slots;
-}
+/* ===========================================================
+   본선 진출 로직 (4강 고정)
+   1) 각 조 1위 자동 진출
+   2) 남은 자리(4 - 조개수) = 와일드카드 → 2위(필요시 3위...) 후보 중 선발
+   비교: 득실차 → 다득점 → 최소실점 → (완전동률) 추첨
+   공정성: 후보 경기 수가 다르면 경기당 평균으로 비교
+   doRandom=true 일 때만 완전동률 추첨(랜덤). 미리보기/뱃지는 false(결정적, 깜빡임 방지)
+   =========================================================== */
+function computeQualification(doRandom){
+  const G = S.numGroups;
+  const gs = [];
+  for(let g = 0; g < G; g++) gs.push(standings(g));
+  const wrap = (row, g, rank) => ({
+    teamId: row.id, name: teamName(row.id), group: GLAB(g), groupRank: rank + 1,
+    w: row.w, l: row.l, pf: row.pf, pa: row.pa, gp: row.w + row.l, diff: row.pf - row.pa
+  });
 
-function qualifiers4(){
-  const perGroup = [];
-  for(let g = 0; g < S.numGroups; g++) perGroup.push(standings(g));
-  const q = [];
-  for(let rank = 0; q.length < 4 && rank < S.numTeams; rank++){
-    for(let g = 0; g < S.numGroups && q.length < 4; g++){
-      const row = perGroup[g][rank];
-      if(row) q.push({ teamId: row.id, name: teamName(row.id), group: GLAB(g), groupRank: rank + 1 });
+  // 1위 자동 진출
+  const winners = [];
+  for(let g = 0; g < G; g++) if(gs[g][0]) winners.push({ ...wrap(gs[g][0], g, 0), via: 'win' });
+
+  const wildcardSlots = 4 - G;
+
+  // 단일 조: 그 조 상위 4팀 (1위 + 2~4위)
+  if(G === 1){
+    const top = gs[0].slice(0, 4).map((r, i) => ({ ...wrap(r, 0, i), via: i === 0 ? 'win' : 'wc' }));
+    return { qualified: top, winners: top.slice(0, 1), wildcards: top.slice(1),
+             wildcardSlots: Math.max(0, top.length - 1), perGame: false, needsDraw: false, overflow: false, numGroups: G };
+  }
+  // 5조 이상: 1위만으로 본선 4팀 초과 — 경고 (이번 작업 범위 아님)
+  if(wildcardSlots < 0){
+    return { qualified: winners.slice(0, 4), winners, wildcards: [], wildcardSlots: 0,
+             perGame: false, needsDraw: false, overflow: true, numGroups: G };
+  }
+  // 4조: 와일드카드 없음
+  if(wildcardSlots === 0){
+    return { qualified: winners.slice(), winners, wildcards: [], wildcardSlots: 0,
+             perGame: false, needsDraw: false, overflow: false, numGroups: G };
+  }
+
+  // 와일드카드 후보 풀: 2위부터, 슬롯 채워질 때까지 (필요 시 3위...)
+  const pool = [];
+  const maxSize = Math.max(...gs.map(s => s.length));
+  for(let rank = 1; pool.length < wildcardSlots && rank < maxSize; rank++){
+    for(let g = 0; g < G; g++) if(gs[g][rank]) pool.push({ ...wrap(gs[g][rank], g, rank), via: 'wc' });
+  }
+
+  // 공정성: 후보 경기 수가 서로 다르면 경기당 평균으로 비교
+  const perGame = new Set(pool.map(c => c.gp)).size > 1;
+  const metric = (c) => {
+    const g = c.gp || 1;
+    return perGame ? { diff: c.diff / g, pf: c.pf / g, pa: c.pa / g } : { diff: c.diff, pf: c.pf, pa: c.pa };
+  };
+  // 정렬: 득실차↓ → 다득점↓ → 최소실점↑ (2위들은 다른 조라 승자승 없음)
+  pool.sort((a, b) => {
+    const va = metric(a), vb = metric(b);
+    if(vb.diff !== va.diff) return vb.diff - va.diff;
+    if(vb.pf !== va.pf) return vb.pf - va.pf;
+    if(va.pa !== vb.pa) return va.pa - vb.pa;
+    return 0;
+  });
+
+  // 추첨 필요: 경계(마지막 진출 vs 첫 탈락)가 완전 동률
+  let needsDraw = false;
+  if(pool.length > wildcardSlots){
+    const eq = (x, y) => x.diff === y.diff && x.pf === y.pf && x.pa === y.pa;
+    const hi = metric(pool[wildcardSlots]);
+    if(eq(metric(pool[wildcardSlots - 1]), hi)){
+      needsDraw = true;
+      if(doRandom){ // 완전동률 연속구간만 셔플(추첨)
+        let s = wildcardSlots - 1, e = wildcardSlots;
+        while(s > 0 && eq(metric(pool[s - 1]), hi)) s--;
+        while(e < pool.length - 1 && eq(metric(pool[e + 1]), hi)) e++;
+        for(let i = e; i > s; i--){ const j = s + Math.floor(Math.random() * (i - s + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+      }
     }
   }
-  return q;
+
+  const wildcards = pool.slice(0, wildcardSlots);
+  return { qualified: winners.concat(wildcards), winners, wildcards, wildcardSlots, perGame, needsDraw, overflow: false, numGroups: G };
 }
 
 function buildBracket(){
-  const q = qualifiers4();
+  const qual = computeQualification(true); // 빌드 시 완전동률은 추첨(랜덤) 1회 처리
+  S.lastQual = qual;                        // 미리보기 근거 표시용
+  const q = qual.qualified;
   const semis = [
     { a: q[0] || null, b: q[3] || null, sa: '', sb: '', winner: null },
     { a: q[1] || null, b: q[2] || null, sa: '', sb: '', winner: null },
@@ -1505,7 +1566,14 @@ function renderFormatPreview(){
     ? `<span class="pchip">팀당 ${S.gamesPerTeam}경기 보장</span>`
     : `<span class="pchip">풀리그(전체)</span>`;
   el.innerHTML += `<span class="pchip">예선 ${totalGames}경기</span>`;
-  el.innerHTML += `<span class="pchip fixed">본선 4강 고정</span>`;
+  // 본선 진출 구조 (1위 자동 + 와일드카드)
+  const G = S.numGroups;
+  if(G >= 5){
+    el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ 5조↑ 본선 4팀 초과(별도 규칙 필요)</span>`;
+  } else {
+    const winN = Math.min(G, 4), wcM = Math.max(0, 4 - G);
+    el.innerHTML += `<span class="pchip fixed">본선 4강 고정 · 1위 ${winN}팀${wcM > 0 ? ` · 와일드카드 ${wcM}자리` : ''}</span>`;
+  }
 }
 ['numTeams', 'numGroups', 'gamesPerTeam'].forEach(id => document.getElementById(id).addEventListener('input', () => {
   // 포맷이 바뀌면 생성된 예선/순위/본선 무효화 후 미리보기 갱신
@@ -1585,7 +1653,9 @@ function clearAssign(){ S.assign = {}; S.groupGames = []; S.manualOrder = {}; S.
 /* ---------------- STEP 3 ---------------- */
 function renderGroupStage(){
   if(!S.groupGames.length) buildGroupGames();
-  const slots = qualSlotsPerGroup();
+  // 실제 진출팀(1위+와일드카드) 기준으로 뱃지 표시 (결정적 — 깜빡임 방지)
+  const qual = computeQualification(false);
+  const qualVia = {}; qual.qualified.forEach(t => qualVia[t.teamId] = t.via); // teamId → 'win'|'wc'
   const wrap = document.getElementById('groupStageWrap'); wrap.innerHTML = '';
 
   for(let g = 0; g < S.numGroups; g++){
@@ -1599,10 +1669,12 @@ function renderGroupStage(){
     let tbl = `<table class="standing"><thead><tr><th>#</th><th>TEAM</th><th>WIN</th><th>LOSS</th><th>+/–</th></tr></thead><tbody>`;
     rows.forEach((r, rank) => {
       const pm = r.pf - r.pa;
-      const qual = rank < slots[g];
-      tbl += `<tr class="standing-row ${qual ? 'qual' : ''}" draggable="true" data-tid="${r.id}" title="드래그해 순위 변경">
+      const via = qualVia[r.id];                 // 'win' | 'wc' | undefined
+      const badge = via === 'win' ? '<span class="qmark">진출</span>'
+                  : via === 'wc'  ? '<span class="qmark wc">WC</span>' : '';
+      tbl += `<tr class="standing-row ${via ? 'qual' : ''}" draggable="true" data-tid="${r.id}" title="드래그해 순위 변경">
         <td class="rank-cell">${rank + 1}</td>
-        <td class="team-cell">${escapeHtml(teamName(r.id))}${qual ? '<span class="qmark">진출</span>' : ''}</td>
+        <td class="team-cell">${escapeHtml(teamName(r.id))}${badge}</td>
         <td>${r.w}</td><td>${r.l}</td>
         <td class="${pm > 0 ? 'pos' : pm < 0 ? 'neg' : ''}">${pm > 0 ? '+' + pm : pm}</td>
       </tr>`;
@@ -1652,7 +1724,7 @@ function setGroupScore(gameId, side, value){
   const m = S.groupGames.find(x => x.id === gameId);
   if(!m) return;
   m[side === 'a' ? 'sa' : 'sb'] = value === '' ? '' : Math.max(0, +value);
-  S.bracket = null;
+  S.bracket = null; S.lastQual = null; // 점수 바뀌면 진출 계산 무효화
   renderGroupStage();
 }
 
@@ -1701,12 +1773,22 @@ function renderBuilderBracket(){
       : `<div class="seed tbd" style="min-width:196px">결승 진행 중</div>`);
   wrap.appendChild(champCol);
 
-  const slots = qualSlotsPerGroup();
-  const slotDesc = slots.map((n, i) => n > 0 ? `${GLAB(i)}조 ${n}팀` : null).filter(Boolean).join(' + ');
-  document.getElementById('bracketNote').innerHTML =
-    `본선 진출: <code>${slotDesc}</code> — 같은 조끼리 4강에서 만나지 않도록 교차 배정했습니다. ` +
-    `점수 입력 시 승자가 자동으로 다음 라운드에 진출하며, 4강 팀은 드래그로 자리를 바꿀 수 있습니다. ` +
-    `<b>💾 대회 저장</b>을 누르면 Supabase에 기록되고 TOURNAMENTS 탭과 전광판 Admin에서 확인할 수 있습니다.`;
+  const ql = S.lastQual;
+  let note = '';
+  if(ql && ql.overflow){
+    note = `⚠️ 조가 <code>${ql.numGroups}개</code>라 1위만으로 본선 4팀을 초과합니다. 현재는 앞 4개 조 1위만 배정 — 진출 규칙을 별도로 정해야 합니다. `;
+  } else if(ql){
+    const sign = d => d >= 0 ? '+' + d : '' + d;
+    note = `본선 4강 · <b>1위 ${ql.winners.length}팀 자동 진출</b>` + (ql.wildcardSlots > 0 ? ` · 와일드카드 ${ql.wildcardSlots}자리` : '') + '. ';
+    if(ql.wildcards.length){
+      const wc = ql.wildcards.map(w => `${escapeHtml(w.name)}(${w.group}조 ${w.groupRank}위, 득실차 ${sign(w.diff)}·다득점 ${w.pf})`).join(', ');
+      note += `<b>와일드카드 진출</b>: <code>${wc}</code>. `;
+      if(ql.perGame) note += `<b>후보 경기 수가 달라 경기당 평균</b>으로 비교했습니다. `;
+      if(ql.needsDraw) note += `<b style="color:var(--orange)">⚠️ 추첨 필요</b> — 완전 동률이라 랜덤 배정했습니다(실제 추첨으로 확정 권장). `;
+    }
+  }
+  note += `같은 조끼리 4강에서 만나지 않도록 교차 배정. 점수 입력 시 자동 진출, 4강 팀은 드래그로 자리 교환. <b>💾 대회 저장</b> 시 Supabase 기록.`;
+  document.getElementById('bracketNote').innerHTML = note;
 }
 function bracketMatchEl(m, matchKey){
   const d = document.createElement('div'); d.className = 'match';
