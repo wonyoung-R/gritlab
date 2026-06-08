@@ -84,69 +84,50 @@ const formatShotClock = (seconds) => {
     return Math.ceil(t).toString().padStart(2, '0');
 };
 
-// 농구 부저 사운드
-// NBA 스타일 부저 — 195 Hz 스퀘어 + 45 Hz AM 변조 + tanh 클리핑 + 컴프레서
-const playBuzzer = () => {
+// 농구 부저 사운드 — 바탕화면(Scoreboard.jsx)과 동일한 2종 mp3 버퍼 방식
+// 게임클락(메인) / 샷클락 서로 다른 소리. 첫 인터랙션 시 initBuzzers로 프리로드(디코드 딜레이 제거).
+let _audioCtx = null;
+let _gameBuf = null;
+let _shotBuf = null;
+
+const _ensureCtx = () => {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
+};
+
+const _loadBuf = async (url) => {
+    const ctx = _ensureCtx();
+    const res = await fetch(url);
+    const raw = await res.arrayBuffer();
+    return ctx.decodeAudioData(raw);
+};
+
+const initBuzzers = async () => {
+    if (_gameBuf && _shotBuf) return;
     try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = audioCtx.currentTime;
-        const dur = 1.8;
+        [_gameBuf, _shotBuf] = await Promise.all([
+            _loadBuf('/sounds/gameclock_buzzer.mp3'),
+            _loadBuf('/sounds/shotclock_buzzer.mp3'),
+        ]);
+    } catch (e) { /* silent — 부저 로드 실패 시 무음 */ }
+};
 
-        const waveshaper = audioCtx.createWaveShaper();
-        const clipCurve = new Float32Array(512);
-        for (let i = 0; i < 512; i++) {
-            const x = (i * 2) / 512 - 1;
-            clipCurve[i] = Math.tanh(x * 6);
-        }
-        waveshaper.curve = clipCurve;
-        waveshaper.oversample = '4x';
-
-        const comp = audioCtx.createDynamicsCompressor();
-        comp.threshold.value = -14;
-        comp.knee.value = 2;
-        comp.ratio.value = 16;
-        comp.attack.value = 0.001;
-        comp.release.value = 0.08;
-
-        const master = audioCtx.createGain();
-        master.gain.setValueAtTime(0, now);
-        master.gain.linearRampToValueAtTime(0.9, now + 0.008);
-        master.gain.setValueAtTime(0.9, now + dur - 0.07);
-        master.gain.linearRampToValueAtTime(0, now + dur);
-
-        waveshaper.connect(comp);
-        comp.connect(master);
-        master.connect(audioCtx.destination);
-
-        const osc1 = audioCtx.createOscillator();
-        osc1.type = 'square';
-        osc1.frequency.setValueAtTime(195, now);
-
-        const amOsc = audioCtx.createOscillator();
-        amOsc.type = 'square';
-        amOsc.frequency.setValueAtTime(45, now);
-        const amGain = audioCtx.createGain();
-        amGain.gain.setValueAtTime(0.45, now);
-        amOsc.connect(amGain);
-
-        const osc1Gain = audioCtx.createGain();
-        osc1Gain.gain.setValueAtTime(0.55, now);
-        amGain.connect(osc1Gain.gain);
-
-        osc1.connect(osc1Gain);
-        osc1Gain.connect(waveshaper);
-
-        const osc2 = audioCtx.createOscillator();
-        osc2.type = 'square';
-        osc2.frequency.setValueAtTime(390, now);
-        const osc2Gain = audioCtx.createGain();
-        osc2Gain.gain.setValueAtTime(0.25, now);
-        osc2.connect(osc2Gain);
-        osc2Gain.connect(waveshaper);
-
-        [osc1, amOsc, osc2].forEach(o => { o.start(now); o.stop(now + dur); });
+const _playBuf = (buf) => {
+    if (!buf) return;
+    try {
+        const ctx = _ensureCtx();
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
     } catch (e) { /* silent */ }
 };
+
+// 게임클락(메인) 부저 — 기존 호출처(게임클락 0초·KeyB·인터미션·수동버튼) 그대로 사용
+const playBuzzer = () => _playBuf(_gameBuf);
+// 샷클락 부저 — 샷클락 0초 전용
+const playBuzzerShot = () => _playBuf(_shotBuf);
 
 export default function ThreeVThreeAdmin() {
     const navigate = useNavigate();
@@ -241,6 +222,19 @@ export default function ThreeVThreeAdmin() {
         setLoading(false);
     };
 
+    // ── 부저 사운드 프리로드: 첫 인터랙션(클릭/터치/키) 시 버퍼 디코드 ──
+    useEffect(() => {
+        const handler = () => { initBuzzers(); };
+        document.addEventListener('click', handler, { once: true });
+        document.addEventListener('touchstart', handler, { once: true });
+        document.addEventListener('keydown', handler, { once: true });
+        return () => {
+            document.removeEventListener('click', handler);
+            document.removeEventListener('touchstart', handler);
+            document.removeEventListener('keydown', handler);
+        };
+    }, []);
+
     // ── 경기 목록 로드 ──
     useEffect(() => {
         if (!activeTournamentId) { setMatches([]); setAllMatches([]); return; }
@@ -283,7 +277,7 @@ export default function ThreeVThreeAdmin() {
                     if (shotClockPaused) return prev;
                     const next = Math.max(0, prev - diff);
                     if (prev > 0 && next <= 0) {
-                        playBuzzer();
+                        playBuzzerShot();
                         return 0;
                     }
                     return next;
