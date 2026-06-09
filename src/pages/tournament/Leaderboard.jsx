@@ -108,11 +108,11 @@ export default function TournamentLeaderboard() {
         }));
 
     return (
-        <div className="bg-[#050505] min-h-screen text-white p-6 md:p-12 relative overflow-hidden font-pretendard">
+        <div className="bg-[#050505] min-h-screen text-white p-4 md:p-6 relative overflow-hidden font-pretendard">
             {/* Background Accent */}
             <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-orange-600/10 blur-[150px] rounded-full pointer-events-none"></div>
 
-            <div className="max-w-4xl mx-auto relative z-10">
+            <div className="max-w-[1400px] mx-auto relative z-10">
                 <header className="flex flex-col md:flex-row md:justify-between md:items-end mb-10 border-b border-white/10 pb-6 gap-4">
                     <div>
                         <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white flex items-center gap-2 mb-4 transition-colors">
