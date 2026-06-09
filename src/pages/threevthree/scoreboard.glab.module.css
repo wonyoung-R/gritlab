@@ -1461,3 +1461,32 @@
 .shotClockGroup .shotClockGiant { color: var(--sb-green); }        /* 샷클락 초록 (design) */
 .teamNameRow { background: none; border-radius: 0; padding: 4px 12px; box-shadow: none; }  /* 팀명 검은 플레이트 제거 */
 .teamBlock::before { opacity: 0.18; }                              /* 팀 색 테두리 약하게 */
+
+/* ── PR-C: 전광판 텍스트/숫자 Pretendard 통일 (가독성 우선). Anton은 로고/헤더 영문에만 유지 ── */
+/* 점수·게임클락·샷클락 = Pretendard 굵게 + 고정폭 숫자(tabular-nums)로 자릿수 흔들림 방지 */
+.scoreGiant,
+.timerGiant,
+.shotClockGiant {
+    font-family: 'Pretendard', 'Inter', sans-serif;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+/* 2-클래스 base(.timerGroup .timerGiant 등)가 폰트를 잡을 경우 대비 — specificity 동급 보정 */
+.timerGroup .timerGiant,
+.shotClockGroup .shotClockGiant {
+    font-family: 'Pretendard', 'Inter', sans-serif;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+/* 팀명 = Pretendard 굵게 (가독성) */
+.teamNameHuge {
+    font-family: 'Pretendard', 'Inter', sans-serif;
+    font-weight: 800;
+}
+/* 라벨(GAME CLOCK / SHOT CLOCK / TEAM FOULS 등) = Pretendard */
+.timerLabel,
+.foulLabel {
+    font-family: 'Pretendard', 'Inter', sans-serif;
+    font-weight: 700;
+}
