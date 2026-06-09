@@ -1490,3 +1490,7 @@
     font-family: 'Pretendard', 'Inter', sans-serif;
     font-weight: 700;
 }
+
+/* ── PR-E: 라이브 전광판 좌우 여백 최소화 — 화면 꽉 채움 (Admin 전용 glab CSS, 바탕화면 무영향) ── */
+.scoreboard .header { padding: 20px 22px; }
+.scoreboard .main { padding: 0 14px; }
