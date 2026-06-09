@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard } from 'lucide-react';
+import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -511,16 +511,11 @@ export default function ThreeVThreeAdmin() {
         return () => clearInterval(t);
     }, [showIntermission, intermissionRunning]);
 
-    // 0초 도달 → 다음 경기 전광판 자동 전환 (없으면 종료 화면 유지)
+    // 0초 도달(90초 경과) → 버저 + 카운트다운 정지. 자동 전환 없음 — '다음 경기 시작' 버튼 클릭으로만 전환.
     useEffect(() => {
         if (!showIntermission || intermissionSec !== 0) return;
         playBuzzer();
-        if (intermissionNext) {
-            setShowIntermission(false);
-            startLiveRecord(intermissionNext);
-        } else {
-            setIntermissionRunning(false);
-        }
+        setIntermissionRunning(false);
     }, [showIntermission, intermissionSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // 인터미션 제어
@@ -529,9 +524,21 @@ export default function ThreeVThreeAdmin() {
         if (intermissionNext) startLiveRecord(intermissionNext);
     };
 
+    // 라이브 점수가 저장본과 다른지 (미저장 상태)
+    const liveDirty = () => liveMatch && (teamAScore !== (liveMatch.team_a_score || 0) || teamBScore !== (liveMatch.team_b_score || 0));
+
     const closeLiveWithoutSave = () => {
+        if (liveDirty() && !window.confirm('현재 경기 점수가 저장되지 않았습니다. 저장하지 않고 목록으로 나갈까요?')) return;
         setTimerRunning(false);
         setLiveMatch(null);
+    };
+
+    // 경기 간 순차 이동 (이전/다음). 미저장 라이브 점수가 있으면 확인 후 이동.
+    const navigateToMatch = (target) => {
+        if (!target || !liveMatch) return;
+        if (liveDirty() && !window.confirm('현재 경기 점수가 저장되지 않았습니다. 저장하지 않고 이동할까요?')) return;
+        setTimerRunning(false);
+        startLiveRecord(target);
     };
 
     const renderFoulDots = (fouls) => {
@@ -597,19 +604,34 @@ export default function ThreeVThreeAdmin() {
                     </div>
                 )}
 
-                {/* 진행자 제어 */}
-                <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                    {nx && (
-                        <button onClick={() => setIntermissionRunning(r => !r)}
-                            style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 28px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
-                            {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
-                        </button>
-                    )}
-                    <button onClick={startNextNow}
-                        style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 30px', border: 'none', background: nx ? C.green : C.orange, color: '#0c1a0e', cursor: 'pointer' }}>
-                        {nx ? '지금 시작 →' : '관리 화면으로'}
-                    </button>
-                </div>
+                {/* 진행자 제어 — 90초 경과(카운트다운 0) 후에만 '다음 경기 시작' 활성화. 자동 전환 없음 */}
+                {(() => {
+                    const waiting = !!nx && intermissionSec > 0;   // 카운트다운 진행 중 = 시작 버튼 비활성
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                            <div style={{ display: 'flex', gap: 14 }}>
+                                {waiting && (
+                                    <button onClick={() => setIntermissionRunning(r => !r)}
+                                        style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 28px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
+                                        {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
+                                    </button>
+                                )}
+                                <button onClick={startNextNow} disabled={waiting}
+                                    style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 30px', border: 'none',
+                                        background: waiting ? C.line : (nx ? C.green : C.orange),
+                                        color: waiting ? C.muted : '#0c1a0e',
+                                        cursor: waiting ? 'not-allowed' : 'pointer', opacity: waiting ? .7 : 1 }}>
+                                    {!nx ? '관리 화면으로' : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
+                                </button>
+                            </div>
+                            {waiting && (
+                                <div style={{ fontSize: 13, letterSpacing: '.12em', color: C.muted }}>
+                                    대기 시간이 끝나면 시작 버튼이 활성화됩니다
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
         );
     }
@@ -626,6 +648,12 @@ export default function ThreeVThreeAdmin() {
         const bWins      = teamBScore > teamAScore;
         const shotClockZero = shotClock <= 0;
 
+        // 경기 간 순차 이동 대상 (팀명 있는 경기, round→match_order 순). 버튼/마우스 전용 — 키보드 매핑 없음.
+        const navList = allMatches.filter(m => m.team_a_name && m.team_b_name);
+        const navIdx = navList.findIndex(m => m.id === liveMatch.id);
+        const prevMatch = navIdx > 0 ? navList[navIdx - 1] : null;
+        const nextMatchNav = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1] : null;
+
         return (
             <div className={`${styles.scoreboard} ${gameEnded ? styles.ended : timerRunning ? styles.live : ''} ${shotClockZero && !gameEnded ? styles.shotClockExpiredBg : ''}`}>
                 {/* 배경 */}
@@ -637,8 +665,18 @@ export default function ThreeVThreeAdmin() {
                 {/* 헤더 */}
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        <button className={styles.iconBtn} onClick={closeLiveWithoutSave}>
+                        <button className={styles.iconBtn} onClick={closeLiveWithoutSave} title="경기 목록으로">
                             <ArrowLeft size={20} />
+                        </button>
+                        <button className={styles.iconBtn} onClick={() => navigateToMatch(prevMatch)} disabled={!prevMatch}
+                            title={prevMatch ? `이전 경기: ${prevMatch.team_a_name} vs ${prevMatch.team_b_name}` : '이전 경기 없음'}
+                            style={!prevMatch ? { opacity: .3, cursor: 'not-allowed' } : undefined}>
+                            <ChevronLeft size={20} />
+                        </button>
+                        <button className={styles.iconBtn} onClick={() => navigateToMatch(nextMatchNav)} disabled={!nextMatchNav}
+                            title={nextMatchNav ? `다음 경기: ${nextMatchNav.team_a_name} vs ${nextMatchNav.team_b_name}` : '다음 경기 없음'}
+                            style={!nextMatchNav ? { opacity: .3, cursor: 'not-allowed' } : undefined}>
+                            <ChevronRight size={20} />
                         </button>
                         <div className={styles.sessionLabel}>
                             <span className={styles.sessionLabelTag}>{roundLabel}</span>
