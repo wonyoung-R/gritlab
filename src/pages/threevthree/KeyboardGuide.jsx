@@ -10,31 +10,32 @@ import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 
 const LETTER_ROWS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';'],
     ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
 ];
 
 // 팀 키 → 사이드 라벨 (라인으로 연결)
 const TEAM = {
-    Q: { side: 'left', text: 'A팀 +1점' },
-    W: { side: 'left', text: 'A팀 +2점' },
-    A: { side: 'left', text: 'A팀 −1 (정정)' },
-    S: { side: 'left', text: 'A팀 파울' },
-    Z: { side: 'left', text: 'A팀 타임아웃' },
-    P: { side: 'right', text: 'B팀 +1점' },
-    O: { side: 'right', text: 'B팀 +2점' },
-    L: { side: 'right', text: 'B팀 −1 (정정)' },
-    K: { side: 'right', text: 'B팀 파울' },
-    M: { side: 'right', text: 'B팀 타임아웃' },
+    A: { side: 'left', text: 'A팀 +1점' },
+    S: { side: 'left', text: 'A팀 +2점' },
+    D: { side: 'left', text: 'A팀 −1 (정정)' },
+    G: { side: 'left', text: 'A팀 파울' },
+    V: { side: 'left', text: 'A팀 타임아웃' },
+    ';': { side: 'right', text: 'B팀 +1점' },
+    L: { side: 'right', text: 'B팀 +2점' },
+    K: { side: 'right', text: 'B팀 −1 (정정)' },
+    H: { side: 'right', text: 'B팀 파울' },
+    N: { side: 'right', text: 'B팀 타임아웃' },
 };
-const LEFT_KEYS = ['Q', 'W', 'A', 'S', 'Z'];
-const RIGHT_KEYS = ['P', 'O', 'L', 'K', 'M'];
+const LEFT_KEYS = ['A', 'S', 'D', 'G', 'V'];
+const RIGHT_KEYS = [';', 'L', 'K', 'H', 'N'];
 
 // 공통 키: 키보드에서 하이라이트 + 하단 레전드로 설명
 const COMMON_KEYS = new Set(['R', 'F', 'J', 'B']);
 const COMMON_LEGEND = [
     { caps: ['Space'], text: '게임클락 시작 / 정지' },
-    { caps: ['F', 'J'], text: '샷클락 12초 리셋' },
+    { caps: ['J'], text: '샷클락 12초 리셋 + 재개' },
+    { caps: ['F'], text: '샷클락 정지 / 재개' },
     { caps: ['R'], text: '게임클락 10:00 리셋' },
     { caps: ['B'], text: '수동 부저' },
     { caps: ['↑', '↓'], text: '게임클락  +1 / −1초' },
