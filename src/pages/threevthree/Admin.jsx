@@ -587,63 +587,101 @@ export default function ThreeVThreeAdmin() {
         const nxRound = nx ? (ROUNDS.find(r => r.id === nx.round)?.label || nx.round) : null;
         const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
         const anton = "'Anton', 'Pretendard', sans-serif";
-        return (
-            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 32,
-                background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton }}>
-                <div style={{ fontSize: 16, letterSpacing: '.3em', color: C.muted }}>{nx ? '다음 경기까지' : 'INTERMISSION'}</div>
+        const pre = "'Pretendard', sans-serif";
+        const waiting = !!nx && intermissionSec > 0;   // 카운트다운 진행 중 = 시작 버튼 비활성
 
-                {/* 카운트다운 */}
-                <div style={{ fontSize: 'clamp(90px, 20vw, 220px)', lineHeight: .9, color: intermissionSec <= 10 ? C.orange : C.cream, fontVariantNumeric: 'tabular-nums' }}>
-                    {mm}:{ss}
+        // 조별 순위 집계 (allMatches GROUP_* — 원시값 정렬: 승수 → 득실차 → 다득점)
+        const groupStandings = (() => {
+            const groups = {};
+            allMatches.filter(m => m.round && m.round.startsWith('GROUP_') && m.team_a_name && m.team_b_name).forEach(m => {
+                const g = m.round; groups[g] = groups[g] || {};
+                const ensure = nm => (groups[g][nm] = groups[g][nm] || { name: nm, w: 0, l: 0, pf: 0, pa: 0 });
+                const A = ensure(m.team_a_name), B = ensure(m.team_b_name);
+                if (m.status === 'ENDED') {
+                    const sa = m.team_a_score || 0, sb = m.team_b_score || 0;
+                    A.pf += sa; A.pa += sb; B.pf += sb; B.pa += sa;
+                    if (sa > sb) { A.w++; B.l++; } else if (sb > sa) { B.w++; A.l++; }
+                }
+            });
+            return Object.keys(groups).sort().map(g => ({
+                round: g, label: ROUNDS.find(r => r.id === g)?.label || g,
+                rows: Object.values(groups[g]).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf),
+            }));
+        })();
+        const thS = { padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: 13 };
+        const thL = { ...thS, textAlign: 'left' };
+
+        return (
+            <div style={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 22px',
+                background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton, overflow: 'hidden' }}>
+
+                {/* 상단: 카운트다운 + 다음 경기 */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                        <span style={{ fontSize: 13, letterSpacing: '.3em', color: C.muted }}>{nx ? '다음 경기까지' : 'INTERMISSION'}</span>
+                        <span style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(40px, 7vw, 88px)', lineHeight: .9, color: intermissionSec <= 10 ? C.orange : C.cream, fontVariantNumeric: 'tabular-nums' }}>{mm}:{ss}</span>
+                    </div>
+                    {nx ? (
+                        <div style={{ textAlign: 'right', minWidth: 0, maxWidth: '58%' }}>
+                            <div style={{ fontSize: 12, letterSpacing: '.2em', color: C.orange, marginBottom: 4 }}>NEXT · {nxRound} · GAME {nx.match_order}</div>
+                            <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(20px, 3.2vw, 40px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {nx.team_a_name || '팀 A'} <span style={{ color: C.muted, fontWeight: 400, fontSize: '.7em' }}>vs</span> {nx.team_b_name || '팀 B'}
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(20px, 3.2vw, 38px)', color: C.orange }}>🏆 모든 경기 종료</div>
+                    )}
                 </div>
 
-                {/* 다음 경기 정보 */}
-                {nx ? (
-                    <div style={{ textAlign: 'center', border: `2px solid ${C.line}`, background: C.navy2, padding: '22px 40px', minWidth: 'min(760px, 92vw)' }}>
-                        <div style={{ fontSize: 14, letterSpacing: '.2em', color: C.orange, marginBottom: 14 }}>
-                            NEXT · {nxRound} · GAME {nx.match_order}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-                            <div style={{ flex: 1, fontSize: 'clamp(28px, 5vw, 56px)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nx.team_a_name || '팀 A'}</div>
-                            <div style={{ fontSize: 22, color: C.muted }}>VS</div>
-                            <div style={{ flex: 1, fontSize: 'clamp(28px, 5vw, 56px)', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nx.team_b_name || '팀 B'}</div>
-                        </div>
+                {/* 중앙: 조별 순위표 (전체 폭, 자동 그리드) */}
+                {groupStandings.length > 0 ? (
+                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(440px, 100%), 1fr))', gap: 14, alignContent: 'start', overflow: 'auto' }}>
+                        {groupStandings.map(g => (
+                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '12px 16px' }}>
+                                <div style={{ fontFamily: anton, fontSize: 'clamp(18px, 2.4vw, 28px)', color: C.orange, letterSpacing: '.06em', marginBottom: 8 }}>{g.label}</div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums' }}>
+                                    <thead><tr><th style={thL}>#</th><th style={thL}>팀</th><th style={thS}>승-패</th><th style={thS}>득</th><th style={thS}>실</th><th style={thS}>+/-</th></tr></thead>
+                                    <tbody>
+                                        {g.rows.map((r, i) => {
+                                            const diff = r.pf - r.pa;
+                                            return (
+                                                <tr key={r.name} style={{ borderTop: `1px solid ${C.line}` }}>
+                                                    <td style={{ padding: '7px 8px', color: C.muted, fontWeight: 700 }}>{i + 1}</td>
+                                                    <td style={{ padding: '7px 8px', fontWeight: 800, fontSize: 'clamp(15px, 1.9vw, 22px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>{r.name}</td>
+                                                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
+                                                    <td style={{ padding: '7px 8px', textAlign: 'right', color: C.muted }}>{r.pf}</td>
+                                                    <td style={{ padding: '7px 8px', textAlign: 'right', color: C.muted }}>{r.pa}</td>
+                                                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ))}
                     </div>
                 ) : (
-                    <div style={{ textAlign: 'center', border: `2px solid ${C.orange}`, padding: '24px 48px' }}>
-                        <div style={{ fontSize: 44 }}>🏆 모든 경기 종료</div>
-                        <div style={{ fontSize: 14, letterSpacing: '.16em', color: C.muted, marginTop: 8 }}>대진표의 모든 경기가 끝났습니다</div>
-                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, letterSpacing: '.16em' }}>예선 결과가 아직 없습니다</div>
                 )}
 
-                {/* 진행자 제어 — 90초 경과(카운트다운 0) 후에만 '다음 경기 시작' 활성화. 자동 전환 없음 */}
-                {(() => {
-                    const waiting = !!nx && intermissionSec > 0;   // 카운트다운 진행 중 = 시작 버튼 비활성
-                    return (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                            <div style={{ display: 'flex', gap: 14 }}>
-                                {waiting && (
-                                    <button onClick={() => setIntermissionRunning(r => !r)}
-                                        style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 28px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
-                                        {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
-                                    </button>
-                                )}
-                                <button onClick={startNextNow} disabled={waiting}
-                                    style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '13px 30px', border: 'none',
-                                        background: waiting ? C.line : (nx ? C.green : C.orange),
-                                        color: waiting ? C.muted : '#0c1a0e',
-                                        cursor: waiting ? 'not-allowed' : 'pointer', opacity: waiting ? .7 : 1 }}>
-                                    {!nx ? '관리 화면으로' : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
-                                </button>
-                            </div>
-                            {waiting && (
-                                <div style={{ fontSize: 13, letterSpacing: '.12em', color: C.muted }}>
-                                    대기 시간이 끝나면 시작 버튼이 활성화됩니다
-                                </div>
-                            )}
-                        </div>
-                    );
-                })()}
+                {/* 하단: 진행자 제어 — 90초 경과 후에만 '다음 경기 시작' 활성화. 자동 전환 없음 */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 14 }}>
+                        {waiting && (
+                            <button onClick={() => setIntermissionRunning(r => !r)}
+                                style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '12px 26px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
+                                {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
+                            </button>
+                        )}
+                        <button onClick={startNextNow} disabled={waiting}
+                            style={{ fontFamily: anton, fontSize: 17, letterSpacing: '.06em', padding: '12px 32px', border: 'none',
+                                background: waiting ? C.line : (nx ? C.green : C.orange), color: waiting ? C.muted : '#0c1a0e',
+                                cursor: waiting ? 'not-allowed' : 'pointer', opacity: waiting ? .7 : 1 }}>
+                            {!nx ? '관리 화면으로' : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
+                        </button>
+                    </div>
+                    {waiting && <div style={{ fontSize: 12, letterSpacing: '.12em', color: C.muted }}>대기 시간이 끝나면 시작 버튼이 활성화됩니다</div>}
+                </div>
             </div>
         );
     }
