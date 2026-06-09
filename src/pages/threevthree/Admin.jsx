@@ -293,7 +293,9 @@ export default function ThreeVThreeAdmin() {
     // 키보드 단축키 (라이브 기록 중에만 활성) — 좌우 분리 블라인드 조작
     // 실제 경기에서 고개 들었다놨다 하며 누락되는 문제 해결: 손가락 감각만으로 조작
     // 왼손=A팀 / 오른손=B팀 / 가운데=공통. 바탕화면 Scoreboard.jsx에는 영향 없음(독립 컴포넌트)
-    // 샷클락 리셋은 F/J(검지 홈버튼 돌기)에 배치 — 가장 빈번 + 블라인드 기준점
+    // 매핑 v2: 득점 A/;(+1) S/L(+2) D/K(-1) · 파울 G/H · 타임아웃 V/N
+    //          샷클락 J(리셋+재개) F(정지/재개 토글) · 게임클락 Space(시작/정지) R(리셋)
+    //          부저 B · 시간 미세조정 방향키(↑↓ 게임클락, ←→ 샷클락)
     // ────────────────────────────────────────
     useEffect(() => {
         if (!liveMatch) return;     // 라이브 모드에서만 동작
@@ -327,36 +329,41 @@ export default function ThreeVThreeAdmin() {
 
             if (e.repeat) return;   // 이하 동작은 키 홀드 자동반복 차단 (점수 폭주 방지)
 
+            // 매핑 테이블 v2 — 좌측 키=A팀 / 우측 키=B팀 / 가운데=공통 (의미 반전 방지 위해 전면 재정의)
             switch (e.code) {
-                // ── 왼손 = A팀 ──
-                case 'KeyQ': setTeamAScore(s => s + 1); break;                  // +1점
-                case 'KeyW': setTeamAScore(s => s + 2); break;                  // +2점
-                case 'KeyA': setTeamAScore(s => Math.max(0, s - 1)); break;     // 정정 -1
-                case 'KeyS': setTeamAFouls(f => f + 1); break;                  // 파울 +1
-                case 'KeyZ': setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // 타임아웃
+                // ── 득점 ──
+                case 'KeyA':      setTeamAScore(s => s + 1); break;              // A팀 +1
+                case 'Semicolon': setTeamBScore(s => s + 1); break;             // B팀 +1
+                case 'KeyS':      setTeamAScore(s => s + 2); break;             // A팀 +2
+                case 'KeyL':      setTeamBScore(s => s + 2); break;             // B팀 +2
+                case 'KeyD':      setTeamAScore(s => Math.max(0, s - 1)); break; // A팀 -1(정정)
+                case 'KeyK':      setTeamBScore(s => Math.max(0, s - 1)); break; // B팀 -1(정정)
 
-                // ── 오른손 = B팀 ──
-                case 'KeyP': setTeamBScore(s => s + 1); break;
-                case 'KeyO': setTeamBScore(s => s + 2); break;
-                case 'KeyL': setTeamBScore(s => Math.max(0, s - 1)); break;
-                case 'KeyK': setTeamBFouls(f => f + 1); break;
-                case 'KeyM': setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break;
+                // ── 파울 ──
+                case 'KeyG':      setTeamAFouls(f => f + 1); break;             // A팀 파울 +1
+                case 'KeyH':      setTeamBFouls(f => f + 1); break;             // B팀 파울 +1
 
-                // ── 공통 / 중앙 ──
-                case 'Space':       // 게임클락 시작/정지 (엄지)
+                // ── 타임아웃 ──
+                case 'KeyV':      setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // A팀
+                case 'KeyN':      setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break; // B팀
+
+                // ── 공통 / 클락 ──
+                case 'Space':     // 게임클락 시작/정지
                     e.preventDefault();
                     setTimerRunning(r => !r);
                     break;
-                case 'KeyF':        // 샷클락 12초 리셋 + 재개 (왼손 검지 홈버튼)
-                case 'KeyJ':        // 샷클락 12초 리셋 + 재개 (오른손 검지 홈버튼)
+                case 'KeyJ':      // 샷클락 12초 리셋 + 재개
                     setShotClock(12);
                     setShotClockPaused(false);
                     break;
-                case 'KeyR':        // 게임클락 10:00 리셋
+                case 'KeyF':      // 샷클락 정지/재개 토글 (게임클락과 독립)
+                    setShotClockPaused(p => !p);
+                    break;
+                case 'KeyR':      // 게임클락 10:00 리셋
                     setTimerRunning(false);
                     setGameTime(600);
                     break;
-                case 'KeyB':        // 수동 부저
+                case 'KeyB':      // 수동 부저
                     playBuzzer();
                     break;
                 default: break;
@@ -751,33 +758,7 @@ export default function ThreeVThreeAdmin() {
                         <div className={styles.timerGroup}>
                             <p className={styles.timerLabel}>GAME CLOCK (TAP: Play/Pause, HOLD: Edit)</p>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                {gameTime < 60 ? (
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Number((t + 1).toFixed(1))); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronsUp size={28} />
-                                        </button>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Number((t + 0.1).toFixed(1))); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronUp size={28} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => t + 60); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronsUp size={28} />
-                                        </button>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => t + 1); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronUp size={28} />
-                                        </button>
-                                    </div>
-                                )}
+                                {/* PR-B: 게임클락 마우스 ±버튼 제거 — 시간조정은 키보드 ↑↓ 또는 길게눌러 편집 모달 */}
                                 <div
                                     className={`${styles.timerGiant} ${timeIsLow && !timeIsZero ? styles.timerDanger : ''} ${timeIsZero ? styles.timerZero : ''}`}
                                     {...gameClockHandlers}
@@ -785,33 +766,6 @@ export default function ThreeVThreeAdmin() {
                                 >
                                     {formatTime(gameTime)}
                                 </div>
-                                {gameTime < 60 ? (
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Math.max(0, Number((t - 1).toFixed(1)))); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronsDown size={28} />
-                                        </button>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Math.max(0, Number((t - 0.1).toFixed(1)))); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronDown size={28} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Math.max(0, t - 60)); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronsDown size={28} />
-                                        </button>
-                                        <button className={styles.iconBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: 'none', color: 'rgba(255,255,255,0.6)', width: 73, height: 34, cursor: 'pointer', transition: 'all 0.2s' }}
-                                            onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(t => Math.max(0, t - 1)); }}
-                                            onTouchEnd={(e) => { e.stopPropagation(); }}>
-                                            <ChevronDown size={28} />
-                                        </button>
-                                    </div>
-                                )}
                                 <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
                                     onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(600); }}>
                                     <RotateCcw size={14} /> 10:00
@@ -820,7 +774,7 @@ export default function ThreeVThreeAdmin() {
                         </div>
 
                         <div className={styles.shotClockGroup}>
-                            <p className={styles.timerLabel}>SHOT CLOCK</p>
+                            <p className={styles.timerLabel}>SHOT CLOCK{shotClockPaused ? <span style={{ color: '#ee7c1b' }}> · 정지(F)</span> : ''}</p>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                 {shotClock < 10 ? (
                                     <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 10 }}>
