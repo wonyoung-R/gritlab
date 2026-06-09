@@ -56,6 +56,14 @@ const ROUNDS = [
     { id: 'FINAL', label: '결승' },
 ];
 
+// 경기 진행/탐색 순서 — 예선(GROUP_*)을 한 페이즈로 묶어 전역 match_order로 정렬하면
+// A1·B1·A2·B2…처럼 조가 교차된다(같은 조 연속 최소화·휴식 확보). 본선은 라운드 순서대로.
+const PHASE_RANK = { GROUP_A: 0, GROUP_B: 0, GROUP_C: 0, GROUP_D: 0, GROUP_E: 0, GROUP_F: 0, QUARTER: 1, SEMI: 2, '3RD_PLACE': 3, FINAL: 4 };
+const byPlayOrder = (a, b) =>
+    ((PHASE_RANK[a.round] ?? 9) - (PHASE_RANK[b.round] ?? 9))
+    || (a.match_order - b.match_order)
+    || a.round.localeCompare(b.round);
+
 const statusColor = (s) => {
     if (s === 'ENDED') return '#d8302c'; // GRIT LAB red
     if (s === 'LIVE') return '#34c13e';  // GRIT LAB green
@@ -481,9 +489,12 @@ export default function ThreeVThreeAdmin() {
         if (m) startLiveRecord(m);
     }, [allMatches]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── 다음 경기 찾기: 순서상 다음 PENDING(팀명 있는) 경기, 현재 제외 ──
+    // 경기 진행/탐색용 정렬본 (예선 조 교차 — A1·B1·A2·B2…, 이후 본선)
+    const orderedMatches = [...allMatches].sort(byPlayOrder);
+
+    // ── 다음 경기 찾기: 진행 순서상 다음 PENDING(팀명 있는) 경기, 현재 제외 ──
     const findNextMatch = (currentId) => {
-        return allMatches.find(m =>
+        return orderedMatches.find(m =>
             m.id !== currentId && m.status !== 'ENDED' && m.team_a_name && m.team_b_name
         ) || null;
     };
@@ -650,7 +661,7 @@ export default function ThreeVThreeAdmin() {
         const shotClockZero = shotClock <= 0;
 
         // 경기 간 순차 이동 대상 (팀명 있는 경기, round→match_order 순). 버튼/마우스 전용 — 키보드 매핑 없음.
-        const navList = allMatches.filter(m => m.team_a_name && m.team_b_name);
+        const navList = orderedMatches.filter(m => m.team_a_name && m.team_b_name);
         const navIdx = navList.findIndex(m => m.id === liveMatch.id);
         const prevMatch = navIdx > 0 ? navList[navIdx - 1] : null;
         const nextMatchNav = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1] : null;

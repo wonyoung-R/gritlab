@@ -705,6 +705,7 @@
           </div>
           <div class="groups-wrap" id="groupsWrap"></div>
         </div>
+        <div id="feasMsg" style="display:none; margin-top:14px; padding:12px 16px; border:1.5px solid var(--red); border-radius:10px; background:rgba(216,48,44,0.10); color:#f3b0ae; font-size:14px; line-height:1.6;"></div>
         <div class="row-actions">
           <button class="btn ghost" onclick="goStep(1)">← 설정</button>
           <button class="btn btn-orange" id="toStep3" onclick="goStep(3)">예선 경기 생성 →</button>
@@ -1381,7 +1382,33 @@ function groupScheduleEx(ids, gamesPerTeam){
 }
 // 호환용: 경기쌍 배열만 반환 (기존 호출처)
 function groupSchedule(ids, gamesPerTeam){ return groupScheduleEx(ids, gamesPerTeam).pairs; }
+// 예선 팀당 경기 수 실현가능성 — 조별 (n, X). 불가 시 사유 + 대안(풀리그 0은 제안 금지).
+function nearestFeasibleX(n, X){
+  const cand = [];
+  for(let x = 1; x <= n - 1; x++) if(n % 2 === 0 || x % 2 === 0) cand.push(x);
+  const lower = cand.filter(x => x < X).pop();
+  const upper = cand.find(x => x > X);
+  return [lower, upper].filter(x => x != null && x > 0);
+}
+function scheduleFeasibility(){
+  if(!S.gamesPerTeam || S.gamesPerTeam <= 0) return { ok: true, problems: [] };  // 풀리그
+  const X = S.gamesPerTeam, problems = [];
+  for(let g = 0; g < S.numGroups; g++){
+    const n = S.teams.filter(t => S.assign[t.id] === g).length;
+    if(n < 2) continue;
+    if((X <= n - 1) && (n % 2 === 0 || X % 2 === 0)) continue;  // 정확히 X 균등 가능
+    const alts = nearestFeasibleX(n, X);
+    const reason = X > n - 1
+      ? `${n}팀 조에서는 최대 ${n - 1}경기까지만 가능합니다`
+      : `${n}팀(홀수) 조에서는 팀당 짝수 경기만 균등 배정이 가능합니다`;
+    const altTxt = alts.length ? ` (가능: 팀당 ${alts.join(' 또는 ')}경기)` : '';
+    problems.push(`${GLAB(g)}조(${n}팀): 팀당 ${X}경기는 불가합니다 — ${reason}${altTxt}.`);
+  }
+  return { ok: problems.length === 0, problems };
+}
 function buildGroupGames(){
+  // 실현 불가(전원 정확히 X 불가능) 시 부분/불균형 대진을 만들지 않는다 — 생성 차단
+  if(!scheduleFeasibility().ok){ S.groupGames = []; return; }
   const games = []; let gid = 1;
   for(let g = 0; g < S.numGroups; g++){
     const ids = S.teams.filter(t => S.assign[t.id] === g).map(t => t.id);
@@ -1595,8 +1622,14 @@ function renderFormatPreview(){
   sizes.forEach((sz, i) => el.innerHTML += `<span class="pchip">${GLAB(i)}조 · ${sz}팀</span>`);
   if(S.gamesPerTeam > 0){
     el.innerHTML += `<span class="pchip">팀당 ${S.gamesPerTeam}경기</span>`;
-    const warns = new Set();
-    sizes.forEach(sz => { const w = groupScheduleEx(Array.from({ length: sz }, (_, k) => k), S.gamesPerTeam).warn; if(w) warns.add(w); });
+    // 실현 불가(전원 정확히 X 불가) 조는 생성 차단 예고
+    const X = S.gamesPerTeam, warns = new Set();
+    sizes.forEach(n => {
+      if(n < 2) return;
+      if((X <= n - 1) && (n % 2 === 0 || X % 2 === 0)) return;
+      const alts = nearestFeasibleX(n, X);
+      warns.add(`${n}팀 조: 팀당 ${X}경기 생성 불가${alts.length ? ` (가능: ${alts.join('/')})` : ''}`);
+    });
     warns.forEach(w => el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ ${w}</span>`);
   } else {
     el.innerHTML += `<span class="pchip">풀리그(전체)</span>`;
@@ -1648,7 +1681,16 @@ function renderAssign(){
   pool.forEach(t => pl.appendChild(teamEl(t)));
   if(!pool.length) pl.innerHTML = '<div class="empty-hint">모든 팀 배정 완료</div>';
   document.getElementById('poolCnt').textContent = pool.length + '팀';
-  document.getElementById('toStep3').disabled = pool.length > 0;
+  // 실현가능성: 불가하면 생성 버튼 차단 + 사유/대안 안내 (부분 대진 방지)
+  const feas = (pool.length === 0) ? scheduleFeasibility() : { ok: true, problems: [] };
+  document.getElementById('toStep3').disabled = pool.length > 0 || !feas.ok;
+  const fm = document.getElementById('feasMsg');
+  if(fm){
+    if(!feas.ok){
+      fm.innerHTML = '⚠️ 예선 대진을 생성할 수 없습니다.<br>' + feas.problems.map(p => '· ' + escapeHtml(p)).join('<br>');
+      fm.style.display = 'block';
+    } else { fm.innerHTML = ''; fm.style.display = 'none'; }
+  }
 }
 function teamEl(t){
   const d = document.createElement('div');
@@ -1907,6 +1949,8 @@ function goStep(n){
   if(n === 2) renderAssign();
   if(n === 3){
     if(S.teams.some(t => S.assign[t.id] == null)){ alert('모든 팀을 조에 배정해야 합니다.'); return goStep(2); }
+    const feas = scheduleFeasibility();
+    if(!feas.ok){ alert('예선 대진을 생성할 수 없습니다:\n\n' + feas.problems.join('\n')); return goStep(2); }
     renderGroupStage();
   }
   if(n === 4){
