@@ -1336,20 +1336,51 @@ function roundRobinRounds(ids){
   }
   return rounds;
 }
-// 한 조의 경기 짝 생성. gamesPerTeam>0 이면 팀당 최소 그 경기 수 보장(라운드 단위), 0이면 풀리그.
-function groupSchedule(ids, gamesPerTeam){
-  if(ids.length < 2) return [];
-  const rounds = roundRobinRounds(ids);
-  const full = !gamesPerTeam || gamesPerTeam <= 0;
-  const count = {}; ids.forEach(id => count[id] = 0);
-  const pairs = [];
-  for(const round of rounds){
-    // 풀리그가 아니고 모든 팀이 목표 경기 수를 채웠으면 중단 (최소 X 보장 → 일부는 X+1 가능)
-    if(!full && ids.every(id => count[id] >= gamesPerTeam)) break;
-    for(const [a, b] of round){ pairs.push([a, b]); count[a]++; count[b]++; }
+// 홀수 조: K_n(n 홀수)을 (n−1)/2개의 edge-disjoint 해밀턴 사이클로 분해 (Walecki zigzag).
+// 각 사이클 = 전원 정확히 +2경기. 부분 리그에서 홀수 조의 균등 보장에 사용.
+function hamiltonianCyclesOdd(ids){
+  const n = ids.length, m = (n - 1) / 2;
+  const special = ids[n - 1], outer = ids.slice(0, n - 1), M = n - 1;
+  const baseSeq = [0];
+  for(let i = 1; i <= m; i++){ baseSeq.push(i); if(i !== M - i) baseSeq.push(M - i); }
+  const cycles = [];
+  for(let r = 0; r < m; r++){
+    const path = baseSeq.map(idx => outer[(idx + r) % M]);
+    const cyc = [[special, path[0]]];
+    for(let j = 0; j < M - 1; j++) cyc.push([path[j], path[j + 1]]);
+    cyc.push([path[M - 1], special]);
+    cycles.push(cyc);
   }
-  return pairs;
+  return cycles;
 }
+// 한 조의 경기 짝 생성 (보장형). 0=풀리그.
+// 짝수 조 = circle-method 앞 X라운드(각 라운드 = 완전 매칭 → 전원 +1). 홀수 조 = 해밀턴 사이클 X/2개(각 +2).
+// 정확히 X 보장 조건: X ≤ n−1 AND (n 짝수 OR X 짝수). 그 외(홀수조·홀수경기수, X>n−1)는 best-effort + warn.
+// 반환: { pairs:[[a,b]...], warn:string|null }
+function groupScheduleEx(ids, gamesPerTeam){
+  const n = ids.length;
+  if(n < 2) return { pairs: [], warn: null };
+  if(!gamesPerTeam || gamesPerTeam <= 0) return { pairs: roundRobinRounds(ids).flat(), warn: null };
+  let X = gamesPerTeam, warn = null;
+  if(X > n - 1){ warn = `${n}팀 조는 최대 ${n - 1}경기 → 팀당 ${n - 1}경기로 조정`; X = n - 1; }
+  const pairs = [];
+  if(n % 2 === 0){
+    const rounds = roundRobinRounds(ids);
+    for(let i = 0; i < X; i++) pairs.push(...rounds[i]);
+  } else {
+    const cycles = hamiltonianCyclesOdd(ids);
+    const useCycles = Math.floor(X / 2);
+    for(let i = 0; i < useCycles; i++) pairs.push(...cycles[i]);
+    if(X % 2 === 1){
+      const extra = cycles[useCycles];                       // 미사용 사이클의 교대 엣지 = 한 팀 제외 매칭
+      if(extra) for(let i = 0; i + 1 < extra.length; i += 2) pairs.push(extra[i]);
+      warn = `홀수 조(${n}팀)에 홀수 경기수(${gamesPerTeam}) → 한 팀은 ${X - 1}경기(정확히 균등 불가)`;
+    }
+  }
+  return { pairs, warn };
+}
+// 호환용: 경기쌍 배열만 반환 (기존 호출처)
+function groupSchedule(ids, gamesPerTeam){ return groupScheduleEx(ids, gamesPerTeam).pairs; }
 function buildGroupGames(){
   const games = []; let gid = 1;
   for(let g = 0; g < S.numGroups; g++){
@@ -1562,9 +1593,14 @@ function renderFormatPreview(){
   const el = document.getElementById('formatPreview');
   el.innerHTML = '';
   sizes.forEach((sz, i) => el.innerHTML += `<span class="pchip">${GLAB(i)}조 · ${sz}팀</span>`);
-  el.innerHTML += S.gamesPerTeam > 0
-    ? `<span class="pchip">팀당 ${S.gamesPerTeam}경기 보장</span>`
-    : `<span class="pchip">풀리그(전체)</span>`;
+  if(S.gamesPerTeam > 0){
+    el.innerHTML += `<span class="pchip">팀당 ${S.gamesPerTeam}경기</span>`;
+    const warns = new Set();
+    sizes.forEach(sz => { const w = groupScheduleEx(Array.from({ length: sz }, (_, k) => k), S.gamesPerTeam).warn; if(w) warns.add(w); });
+    warns.forEach(w => el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ ${w}</span>`);
+  } else {
+    el.innerHTML += `<span class="pchip">풀리그(전체)</span>`;
+  }
   el.innerHTML += `<span class="pchip">예선 ${totalGames}경기</span>`;
   // 본선 진출 구조 (1위 자동 + 와일드카드)
   const G = S.numGroups;
@@ -1663,6 +1699,19 @@ function renderGroupStage(){
     box.className = 'stage-group';
     const manualOn = !!(S.manualOrder[g] && S.manualOrder[g].length);
     box.innerHTML = `<h3>GROUP ${GLAB(g)}<span class="reorder-hint">↕ 행을 드래그해 진출팀 순서 조정${manualOn ? ` · <a href="#" class="reset-order" data-g="${g}">↺ 자동순위</a>` : ''}</span></h3>`;
+    // 자가검증: 이 조 팀별 경기 수가 설정값과 일치하는지 (불일치 시 화면에 명시)
+    if(S.gamesPerTeam > 0){
+      const gids = S.teams.filter(t => S.assign[t.id] === g).map(t => t.id);
+      const gc = {}; gids.forEach(id => gc[id] = 0);
+      S.groupGames.filter(m => m.g === g).forEach(m => { gc[m.aId]++; gc[m.bId]++; });
+      const vals = gids.map(id => gc[id]); const mn = Math.min(...vals), mx = Math.max(...vals);
+      if(gids.length && (mn !== mx || mn !== S.gamesPerTeam)){
+        const note = document.createElement('div');
+        note.style.cssText = 'margin:2px 0 8px;font-size:12px;color:var(--red);font-weight:600;';
+        note.textContent = `⚠️ 팀당 경기 수 ${mn === mx ? mn : mn + '~' + mx} (설정 ${S.gamesPerTeam}) — 홀수 조·홀수 경기수는 정확히 균등 불가`;
+        box.appendChild(note);
+      }
+    }
     const cols = document.createElement('div'); cols.className = 'stage-cols';
 
     const rows = standings(g);
