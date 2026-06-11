@@ -250,8 +250,11 @@ export default function ThreeVThreeAdmin() {
     // ── 대진 자동 완성 (예선 종료 → 4강 시딩) ──
     const [autoSemiInfo, setAutoSemiInfo] = useState(null); // {qualified, needsDraw} — 인터미션 브라켓 배지용
     const autoFillBusyRef = useRef(false);
-    // ── 운영 모드: null=선택 화면, 'builder'=관리 화면, 'tournament'=전광판↔대기모드 사이클 ──
-    const [adminMode, setAdminMode] = useState(null);
+    // ── 운영 모드: null=모드 선택 랜딩, 'select-tournament'=대회 선택, 'tournament'=전광판↔대기 사이클,
+    //    'builder'=경기 목록 관리(전광판 Admin). ?manage=1 = tournament.html(관리자모드)에서 온 경로 — 게이트 생략
+    const [adminMode, setAdminMode] = useState(
+        new URLSearchParams(window.location.search).get('manage') === '1' ? 'builder' : null
+    );
     const [editTarget, setEditTarget] = useState(null);
     const [tempMins, setTempMins] = useState(0);
     const [tempSecs, setTempSecs] = useState(0);
@@ -808,15 +811,28 @@ export default function ThreeVThreeAdmin() {
         else if (adminMode === 'tournament') setAdminMode(null);
     };
 
-    // ── 대회 모드 진입: 다음 미종료 경기의 전광판부터 시작. 없으면 대기 화면 ──
-    const enterTournamentMode = () => {
+    // ── 대회모드 진행 시작 — 인터미션(준비 화면)부터 (사장 결정: 도식대로 인터미션 → 점수판 → …) ──
+    // 첫 진입은 경기 간 휴식이 아니므로 카운트다운 없이 '다음 경기 시작' 버튼 즉시 활성
+    const enterTournamentCycle = (ms) => {
         setAdminMode('tournament');
-        const nxt = orderedMatches.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name);
-        if (nxt) { startLiveRecord(nxt); return; }
-        setIntermissionNext(null);
+        const ordered = [...ms].sort(byPlayOrder);
+        setIntermissionNext(ordered.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name) || null);
         setIntermissionSec(0);
         setIntermissionRunning(false);
         setShowIntermission(true);
+        document.documentElement.requestFullscreen?.().catch?.(() => {}); // 전체화면(TV 출력) — 미지원/거부 시 무시
+    };
+
+    // 대회 선택 → 해당 대회 경기 로드 → 사이클 진입 (state 반영을 기다리지 않고 직접 fetch)
+    const selectTournamentAndEnter = async (tid) => {
+        setActiveTournamentId(tid); // matches effect도 재로드되지만 동일 데이터라 무해
+        const { data, error } = await supabase
+            .from('game_3v3_brackets').select('*')
+            .eq('tournament_id', tid)
+            .order('round').order('match_order', { ascending: true });
+        if (error) { alert('경기 목록 로드 실패: ' + error.message); return; }
+        setAllMatches(data || []);
+        enterTournamentCycle(data || []);
     };
 
     // 라이브 점수가 저장본과 다른지 (미저장 상태)
@@ -881,41 +897,82 @@ export default function ThreeVThreeAdmin() {
     }
 
     // ═══════════════════════════════════
-    //  모드 선택 (진입 게이트) — 경기장 TV에 관리 정보가 노출되지 않도록 진입 시 모드부터 고른다
+    //  모드 선택 랜딩 (로그인 직후 진입점) — tournament.html 직행 없음. 큰 버튼 2개
     // ═══════════════════════════════════
     if (!adminMode) {
+        // 대시보드 경기 클릭(autostart) 진입 중엔 게이트를 띄우지 않음 — 로드되면 곧장 전광판
+        if (sessionStorage.getItem('gritlab_autostart_match')) {
+            return <div className="min-h-screen bg-[#16243f] flex items-center justify-center text-[#8ea0c2]" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>Loading...</div>;
+        }
         const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
         const anton = "'Anton', 'Pretendard', sans-serif";
         const pre = "'Pretendard', sans-serif";
         const modeBtn = {
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.6vh',
-            width: 'min(38vw, 380px)', padding: '5vh 2vw', borderRadius: 16, cursor: 'pointer',
-            border: `2px solid ${C.line}`, background: C.navy2, color: C.cream, fontFamily: anton,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2vh',
+            width: 'min(42vw, 480px)', minHeight: '34vh', padding: '6vh 2vw', borderRadius: 18, cursor: 'pointer',
+            border: `3px solid ${C.line}`, background: C.navy2, color: C.cream, fontFamily: anton,
         };
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4vh', padding: '4vh 4vw',
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5vh', padding: '4vh 4vw',
                 background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton }}>
-                <img src="/gritlab-logo.png" alt="GRIT LAB" style={{ height: '9vh', objectFit: 'contain' }} />
-                <div style={{ fontSize: '2vh', letterSpacing: '.34em', color: C.muted }}>3X3 ADMIN · 모드 선택</div>
-                <select value={activeTournamentId || ''} onChange={e => setActiveTournamentId(e.target.value)}
-                    style={{ fontFamily: pre, fontWeight: 700, fontSize: '2vh', padding: '1.2vh 1.4vw', borderRadius: 10,
-                        background: C.navy2, color: C.cream, border: `2px solid ${C.line}`, maxWidth: '80vw' }}>
-                    {tournaments.map(t => <option key={t.id} value={t.id}>{t.title}{t.status === 'ENDED' ? ' (종료)' : ''}</option>)}
-                </select>
+                <img src="/gritlab-logo.png" alt="GRIT LAB" style={{ height: '10vh', objectFit: 'contain' }} />
+                <div style={{ fontSize: '2.2vh', letterSpacing: '.34em', color: C.muted }}>3X3 ADMIN · 모드 선택</div>
                 <div style={{ display: 'flex', gap: '3vw', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    <button onClick={() => setAdminMode('builder')} style={modeBtn}>
-                        <span style={{ fontSize: '4vh' }}>🛠</span>
-                        <span style={{ fontSize: '3vh', letterSpacing: '.1em' }}>관리자모드</span>
-                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>대회 빌드 · 대진 컨트롤 · 수동 편성 (운영자 전용)</span>
+                    <button onClick={() => { window.location.href = '/tournament.html'; }} style={modeBtn}>
+                        <span style={{ fontSize: '6vh' }}>🛠</span>
+                        <span style={{ fontSize: '4.2vh', letterSpacing: '.1em' }}>관리자모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.9vh', color: C.muted }}>대회 빌드 · 토너먼트 컨트롤 (tournament.html)</span>
                     </button>
-                    <button onClick={enterTournamentMode} disabled={!activeTournamentId}
-                        style={{ ...modeBtn, border: `2px solid ${C.orange}`, opacity: activeTournamentId ? 1 : .5, cursor: activeTournamentId ? 'pointer' : 'not-allowed' }}>
-                        <span style={{ fontSize: '4vh' }}>🏀</span>
-                        <span style={{ fontSize: '3vh', letterSpacing: '.1em', color: C.orange }}>대회모드</span>
-                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>경기 순서대로 전광판 ↔ 대기 화면 자동 진행 (TV 출력)</span>
+                    <button onClick={() => setAdminMode('select-tournament')}
+                        style={{ ...modeBtn, border: `3px solid ${C.orange}` }}>
+                        <span style={{ fontSize: '6vh' }}>🏀</span>
+                        <span style={{ fontSize: '4.2vh', letterSpacing: '.1em', color: C.orange }}>대회모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.9vh', color: C.muted }}>대회 선택 → 경기 일정대로 전광판 ↔ 대기화면 진행</span>
                     </button>
                 </div>
-                <div style={{ fontFamily: pre, fontSize: '1.6vh', color: C.muted }}>대회모드에서는 경기 목록·팀 명단이 화면에 노출되지 않습니다</div>
+                <div style={{ fontFamily: pre, fontSize: '1.7vh', color: C.muted }}>대회모드에서는 경기 목록·팀 명단·편집 화면이 노출되지 않습니다</div>
+            </div>
+        );
+    }
+
+    // ═══════════════════════════════════
+    //  대회모드 — 대회 선택 (전체 + 상태 배지, ACTIVE 우선·종료 흐림)
+    // ═══════════════════════════════════
+    if (adminMode === 'select-tournament') {
+        const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
+        const anton = "'Anton', 'Pretendard', sans-serif";
+        const pre = "'Pretendard', sans-serif";
+        const sorted = [...tournaments].sort((a, b) => (b.status === 'ACTIVE') - (a.status === 'ACTIVE')); // 안정 정렬 — 버킷 내 최신순 유지
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3vh', padding: '6vh 4vw',
+                background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton }}>
+                <div style={{ fontSize: '2.2vh', letterSpacing: '.34em', color: C.muted }}>대회모드 · 진행할 대회 선택</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.6vh', width: 'min(720px, 92vw)', flex: 1 }}>
+                    {sorted.length === 0 && (
+                        <div style={{ fontFamily: pre, color: C.muted, textAlign: 'center', marginTop: '8vh' }}>
+                            대회가 없습니다 — 관리자모드(대회 관리)에서 먼저 생성하세요.
+                        </div>
+                    )}
+                    {sorted.map(t => {
+                        const ended = t.status === 'ENDED';
+                        return (
+                            <button key={t.id} onClick={() => selectTournamentAndEnter(t.id)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '2.6vh 2vw', borderRadius: 14, textAlign: 'left',
+                                    border: `2px solid ${ended ? C.line : C.orange}`, background: C.navy2, color: C.cream,
+                                    cursor: 'pointer', opacity: ended ? .55 : 1, fontFamily: anton }}>
+                                <span style={{ flex: 1, minWidth: 0, fontFamily: pre, fontWeight: 800, fontSize: '2.6vh', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
+                                <span style={{ fontFamily: pre, fontSize: '1.7vh', color: C.muted }}>{(t.created_at || '').slice(0, 10)}</span>
+                                <span style={{ fontFamily: pre, fontWeight: 700, fontSize: '1.6vh', padding: '0.5vh 1vw', borderRadius: 999,
+                                    background: ended ? 'transparent' : 'rgba(52,193,62,.15)', border: `1.5px solid ${ended ? C.line : C.green}`,
+                                    color: ended ? C.muted : C.green }}>{ended ? '종료' : '진행중'}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                <button onClick={() => setAdminMode(null)}
+                    style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.08em', padding: '1.6vh 3vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>
+                    ← 모드 선택
+                </button>
             </div>
         );
     }
@@ -1069,6 +1126,13 @@ export default function ThreeVThreeAdmin() {
                             style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>
                             모드 선택
                         </button>
+                        {adminMode === 'tournament' && (
+                            <button onClick={() => { setShowIntermission(false); setAdminMode('select-tournament'); }}
+                                title="다른 대회로 전환"
+                                style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>
+                                대회 선택
+                            </button>
+                        )}
                         {waiting && (
                             <button onClick={() => setIntermissionRunning(r => !r)}
                                 style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>

@@ -674,7 +674,7 @@
     <div class="nav">
       <button id="navTournaments" class="active" onclick="showView('tournaments')">TOURNAMENTS</button>
       <button id="navBuilder" onclick="showView('builder')">BUILDER</button>
-      <button id="navLive" onclick="location.href='/threevthree/admin'" title="라이브 전광판(키보드 조작) — 실제 경기 기록" style="color:#34c13e">🔴 라이브 전광판</button>
+      <button id="navLive" onclick="location.href='/threevthree/admin?manage=1'" title="라이브 전광판(키보드 조작) — 실제 경기 기록. 관리자모드 경로라 모드 선택 게이트 생략" style="color:#34c13e">🔴 라이브 전광판</button>
       <button id="navKbdGuide" onclick="openKbdImg()" title="키보드 전광판 조작 안내">⌨ 조작 안내</button>
       <span id="authEmail" style="font-family:var(--ui);font-size:12px;color:#8ea0c2;align-self:center;letter-spacing:0;font-weight:400"></span>
       <button id="navLogout" onclick="logout()" style="color:#8ea0c2">LOGOUT</button>
@@ -1028,7 +1028,7 @@ async function selectTournament(id){
     <h2>${escapeHtml(t.title)}</h2>
     <span class="pill ${t.status === 'ACTIVE' ? 'live' : 'ended'}" style="background:${t.status === 'ACTIVE' ? 'var(--green)' : 'var(--navy-line)'}">${t.status === 'ACTIVE' ? 'LIVE' : 'ENDED'}</span>
     <div class="actions">
-      <button class="btn btn-sm" style="background:#34c13e;color:#0c1a0e" onclick="location.href='/tournament/manage-3v3/${t.id}'" title="이 대회를 라이브 전광판(키보드 조작)에서 기록">🔴 라이브 전광판</button>
+      <button class="btn btn-sm" style="background:#34c13e;color:#0c1a0e" onclick="location.href='/tournament/manage-3v3/${t.id}?manage=1'" title="이 대회를 라이브 전광판(키보드 조작)에서 기록">🔴 라이브 전광판</button>
       ${t.status === 'ACTIVE' ? `<button class="btn ghost btn-sm" onclick="resumeInBuilder('${t.id}')">빌더에서 계속 →</button>` : ''}
       <button class="btn ${t.status === 'ACTIVE' ? 'btn-red' : 'btn-green'} btn-sm" onclick="toggleTournamentStatus('${t.id}')">
         ${t.status === 'ACTIVE' ? '대회 종료' : '대회 재개'}
