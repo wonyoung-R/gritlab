@@ -270,6 +270,37 @@
   .game-row.pending { opacity: .55; }
   .game-row.clickable { cursor: pointer; transition: box-shadow .12s, background .12s; }
   .game-row.clickable:hover { background: var(--cream-2); box-shadow: inset 0 0 0 2px var(--orange); }
+
+  /* ── PR-E2: 결과 섹션 전체화면 (TV 출력) ──
+     40인치 TV(화면높이 ≈50cm, 1vh ≈ 0.5cm) · 시청거리 15m 타깃 — 순위/경기 행 ≥4cm(8vh급)
+     :fullscreen 안에서는 고정 px 대신 vh/vw 사이징 → 1080p/4K 해상도 무관 비율 유지 */
+  .fs-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+  .fs-btn {
+    font-family: var(--display); font-size: 13px; letter-spacing: .08em;
+    background: var(--navy); color: var(--cream); border: 2px solid var(--navy-line);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+    transition: border-color .12s, color .12s;
+  }
+  .fs-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .fs-section:fullscreen { background: var(--navy); padding: 3vh 2vw; overflow: auto; }
+  .fs-section:fullscreen .fs-btn { display: none; }
+  .fs-section:fullscreen .fs-head .round-title { font-size: 4vh; color: var(--cream); }
+  /* STANDING — 순위표 원거리 가독 (행 텍스트 ~4.6vh ≈ 2.3cm 글자높이 + 패딩 = 행 ~8vh) */
+  .fs-section:fullscreen .groups-grid { grid-template-columns: repeat(auto-fit, minmax(42vw, 1fr)); gap: 2.5vh 2vw; }
+  .fs-section:fullscreen .group h3 { font-size: 4.5vh; }
+  .fs-section:fullscreen table.standing th { font-size: 2.4vh; padding: 1vh 0.8vw; }
+  .fs-section:fullscreen table.standing td { font-size: 4.6vh; height: auto; padding: 1vh 0.8vw; }
+  .fs-section:fullscreen table.standing td.team-cell { font-size: 4.6vh; }
+  /* ALL GAMES — 경기 행 */
+  .fs-section:fullscreen .game-rows { grid-template-columns: repeat(auto-fill, minmax(44vw, 1fr)); gap: 1.4vh 1.2vw; }
+  .fs-section:fullscreen .game-row { padding: 1.2vh 1vw; }
+  .fs-section:fullscreen .game-row .gteam { font-size: 3.6vh; }
+  .fs-section:fullscreen .game-row .gsc { font-size: 4.6vh; }
+  .fs-section:fullscreen .game-row .gnum, .fs-section:fullscreen .game-row .gvs { font-size: 2vh; }
+  .fs-section:fullscreen .round-block h4 { font-size: 3vh; }
+  /* BRACKET — 대진표 */
+  .fs-section:fullscreen .seed .nm { font-size: 4vh; }
+  .fs-section:fullscreen .seed .sc { font-size: 4.6vh; }
   .game-row .golive { font-family: var(--display); font-size: 10px; letter-spacing: .08em; color: var(--orange); margin-left: 8px; opacity: 0; transition: opacity .12s; white-space: nowrap; }
   .game-row.clickable:hover .golive { opacity: 1; }
 
@@ -901,6 +932,23 @@ async function selectTournament(id){
   document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// PR-E2: 결과 섹션 래퍼 — 제목 + ⛶ 전체화면 버튼 (TV 출력용. :fullscreen에서 vh/vw 사이징 적용)
+function makeFsSection(id, title){
+  const sec = document.createElement('section');
+  sec.className = 'fs-section'; sec.id = id;
+  const head = document.createElement('div');
+  head.className = 'fs-head';
+  head.innerHTML = `<div class="round-title" style="text-align:left;margin:0">${title}</div>
+    <button class="fs-btn" onclick="enterFs('${id}')" title="이 화면을 전체화면(TV)으로 표시 — ESC로 종료">⛶ 전체화면</button>`;
+  sec.appendChild(head);
+  return sec;
+}
+function enterFs(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
+}
+
 function renderTournamentResult(matches){
   const body = document.getElementById('resultBody');
   if(!matches.length){
@@ -909,13 +957,10 @@ function renderTournamentResult(matches){
   }
   body.innerHTML = '';
 
-  // ── 1) STANDING: GROUP_* 라운드 자동 집계 ──
+  // ── 1) 02 STANDING: GROUP_* 라운드 자동 집계 ──
   const groupRounds = [...new Set(matches.filter(m => m.round.startsWith('GROUP_')).map(m => m.round))].sort();
   if(groupRounds.length){
-    const label = document.createElement('div');
-    label.className = 'round-title'; label.style.marginBottom = '14px'; label.style.textAlign = 'left';
-    label.textContent = 'STANDING';
-    body.appendChild(label);
+    const sec = makeFsSection('fsStanding', 'STANDING');
 
     const grid = document.createElement('div');
     grid.className = 'groups-grid';
@@ -938,25 +983,23 @@ function renderTournamentResult(matches){
       div.innerHTML = html;
       grid.appendChild(div);
     });
-    body.appendChild(grid);
+    sec.appendChild(grid);
+    body.appendChild(sec);
   }
 
-  // ── 2) BRACKET: SEMI + FINAL (+ 3RD_PLACE) ──
+  // ── 2) 04 BRACKET: SEMI + FINAL (+ 3RD_PLACE) ──
   const semis = matches.filter(m => m.round === 'SEMI').slice(0, 2);
   const final = matches.find(m => m.round === 'FINAL');
   if(semis.length || final){
-    const label = document.createElement('div');
-    label.className = 'round-title'; label.style.marginBottom = '14px'; label.style.textAlign = 'left';
-    label.textContent = 'BRACKET';
-    body.appendChild(label);
-    body.appendChild(renderResultBracket(semis, final));
+    const sec = makeFsSection('fsBracket', 'BRACKET');
+    sec.appendChild(renderResultBracket(semis, final));
+    body.appendChild(sec);
   }
 
-  // ── 3) 전체 경기 목록 (라운드별) ──
-  const label = document.createElement('div');
-  label.className = 'round-title'; label.style.margin = '30px 0 14px'; label.style.textAlign = 'left';
-  label.textContent = 'ALL GAMES';
-  body.appendChild(label);
+  // ── 3) 03 ALL GAMES: 전체 경기 목록 (라운드별) ──
+  const gamesSec = makeFsSection('fsAllGames', 'ALL GAMES');
+  gamesSec.style.marginTop = '30px';
+  body.appendChild(gamesSec);
 
   const roundOrder = [...groupRounds, 'QUARTER', 'SEMI', '3RD_PLACE', 'FINAL'];
   const presentRounds = [...new Set(matches.map(m => m.round))]
@@ -992,7 +1035,7 @@ function renderTournamentResult(matches){
       rows.appendChild(row);
     });
     block.appendChild(rows);
-    body.appendChild(block);
+    gamesSec.appendChild(block);
   });
 }
 

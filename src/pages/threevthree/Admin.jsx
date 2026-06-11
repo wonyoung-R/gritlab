@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, Maximize2, LayoutDashboard } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -553,6 +553,19 @@ export default function ThreeVThreeAdmin() {
         startLiveRecord(target);
     };
 
+    // ── PR-E2: 브라우저 전체화면 토글 (TV 출력 시 뷰포트 100% — vh/vw 기반이라 해상도 자동 적응) ──
+    const toggleFullscreen = () => {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else document.documentElement.requestFullscreen().catch(() => {});
+    };
+
+    // ── PR-E2: 결과 대시보드(tournament.html)로 이동 — LIVE 미저장 확인 후 ──
+    const goDashboard = () => {
+        if (liveDirty() && !window.confirm('현재 경기 점수가 저장되지 않았습니다. 저장하지 않고 대시보드로 나갈까요?')) return;
+        setTimerRunning(false);
+        window.location.href = '/tournament.html';
+    };
+
     const renderFoulDots = (fouls) => {
         const dots = [];
         const maxDots = 10;
@@ -608,50 +621,50 @@ export default function ThreeVThreeAdmin() {
                 rows: Object.values(groups[g]).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf),
             }));
         })();
-        const thS = { padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: 13 };
+        const thS = { padding: '0.8vh 0.8vw', textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: '1.7vh' };
         const thL = { ...thS, textAlign: 'left' };
 
         return (
-            <div style={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 22px',
+            <div style={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column', gap: '1.6vh', padding: '2vh 1.6vw',
                 background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton, overflow: 'hidden' }}>
 
                 {/* 상단: 카운트다운 + 다음 경기 */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-                        <span style={{ fontSize: 13, letterSpacing: '.3em', color: C.muted }}>{nx ? '다음 경기까지' : 'INTERMISSION'}</span>
-                        <span style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(40px, 7vw, 88px)', lineHeight: .9, color: intermissionSec <= 10 ? C.orange : C.cream, fontVariantNumeric: 'tabular-nums' }}>{mm}:{ss}</span>
+                        <span style={{ fontSize: '1.8vh', letterSpacing: '.3em', color: C.muted }}>{nx ? '다음 경기까지' : 'INTERMISSION'}</span>
+                        <span style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(10vh, 7vw, 16vh)', lineHeight: .9, color: intermissionSec <= 10 ? C.orange : C.cream, fontVariantNumeric: 'tabular-nums' }}>{mm}:{ss}</span>
                     </div>
                     {nx ? (
                         <div style={{ textAlign: 'right', minWidth: 0, maxWidth: '58%' }}>
-                            <div style={{ fontSize: 12, letterSpacing: '.2em', color: C.orange, marginBottom: 4 }}>NEXT · {nxRound} · GAME {nx.match_order}</div>
-                            <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(20px, 3.2vw, 40px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: '1.6vh', letterSpacing: '.2em', color: C.orange, marginBottom: '0.5vh' }}>NEXT · {nxRound} · GAME {nx.match_order}</div>
+                            <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(4vh, 3.2vw, 7vh)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {nx.team_a_name || '팀 A'} <span style={{ color: C.muted, fontWeight: 400, fontSize: '.7em' }}>vs</span> {nx.team_b_name || '팀 B'}
                             </div>
                         </div>
                     ) : (
-                        <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(20px, 3.2vw, 38px)', color: C.orange }}>🏆 모든 경기 종료</div>
+                        <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(4vh, 3.2vw, 7vh)', color: C.orange }}>🏆 모든 경기 종료</div>
                     )}
                 </div>
 
                 {/* 중앙: 조별 순위표 (전체 폭, 자동 그리드) */}
                 {groupStandings.length > 0 ? (
-                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(440px, 100%), 1fr))', gap: 14, alignContent: 'start', overflow: 'auto' }}>
+                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(44vw, 100%), 1fr))', gap: '1.5vh 1.5vw', alignContent: 'start', overflow: 'auto' }}>
                         {groupStandings.map(g => (
-                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '12px 16px' }}>
-                                <div style={{ fontFamily: anton, fontSize: 'clamp(18px, 2.4vw, 28px)', color: C.orange, letterSpacing: '.06em', marginBottom: 8 }}>{g.label}</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums' }}>
+                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '1.4vh 1.2vw' }}>
+                                <div style={{ fontFamily: anton, fontSize: 'clamp(3vh, 2.4vw, 5vh)', color: C.orange, letterSpacing: '.06em', marginBottom: '1vh' }}>{g.label}</div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums', fontSize: '2.2vh' }}>
                                     <thead><tr><th style={thL}>#</th><th style={thL}>팀</th><th style={thS}>승-패</th><th style={thS}>득</th><th style={thS}>실</th><th style={thS}>+/-</th></tr></thead>
                                     <tbody>
                                         {g.rows.map((r, i) => {
                                             const diff = r.pf - r.pa;
                                             return (
                                                 <tr key={r.name} style={{ borderTop: `1px solid ${C.line}` }}>
-                                                    <td style={{ padding: '7px 8px', color: C.muted, fontWeight: 700 }}>{i + 1}</td>
-                                                    <td style={{ padding: '7px 8px', fontWeight: 800, fontSize: 'clamp(15px, 1.9vw, 22px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>{r.name}</td>
-                                                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
-                                                    <td style={{ padding: '7px 8px', textAlign: 'right', color: C.muted }}>{r.pf}</td>
-                                                    <td style={{ padding: '7px 8px', textAlign: 'right', color: C.muted }}>{r.pa}</td>
-                                                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', color: C.muted, fontWeight: 700 }}>{i + 1}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', fontWeight: 800, fontSize: 'clamp(2.4vh, 1.9vw, 4vh)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '22vw' }}>{r.name}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', color: C.muted }}>{r.pf}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', color: C.muted }}>{r.pa}</td>
+                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
                                                 </tr>
                                             );
                                         })}
@@ -669,18 +682,18 @@ export default function ThreeVThreeAdmin() {
                     <div style={{ display: 'flex', gap: 14 }}>
                         {waiting && (
                             <button onClick={() => setIntermissionRunning(r => !r)}
-                                style={{ fontFamily: anton, fontSize: 16, letterSpacing: '.06em', padding: '12px 26px', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
+                                style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
                                 {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
                             </button>
                         )}
                         <button onClick={startNextNow} disabled={waiting}
-                            style={{ fontFamily: anton, fontSize: 17, letterSpacing: '.06em', padding: '12px 32px', border: 'none',
+                            style={{ fontFamily: anton, fontSize: '2.1vh', letterSpacing: '.06em', padding: '1.4vh 2.4vw', border: 'none',
                                 background: waiting ? C.line : (nx ? C.green : C.orange), color: waiting ? C.muted : '#0c1a0e',
                                 cursor: waiting ? 'not-allowed' : 'pointer', opacity: waiting ? .7 : 1 }}>
                             {!nx ? '관리 화면으로' : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
                         </button>
                     </div>
-                    {waiting && <div style={{ fontSize: 12, letterSpacing: '.12em', color: C.muted }}>대기 시간이 끝나면 시작 버튼이 활성화됩니다</div>}
+                    {waiting && <div style={{ fontSize: '1.5vh', letterSpacing: '.12em', color: C.muted }}>대기 시간이 끝나면 시작 버튼이 활성화됩니다</div>}
                 </div>
             </div>
         );
@@ -739,6 +752,12 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     <div className={styles.headerRight}>
+                        <button className={styles.iconBtn} onClick={goDashboard} title="결과 대시보드로 (미저장 시 확인)">
+                            <LayoutDashboard size={20} />
+                        </button>
+                        <button className={styles.iconBtn} onClick={toggleFullscreen} title="전체화면 (TV 출력)">
+                            <Maximize2 size={20} />
+                        </button>
                         <button className={styles.iconBtn} onClick={() => setShowKbdGuide(true)} title="키보드 조작 안내">
                             <Keyboard size={20} />
                         </button>
@@ -973,6 +992,11 @@ export default function ThreeVThreeAdmin() {
                     <h1 className="text-xl tracking-[0.06em]">
                         <span className="text-[#ee7c1b]">GRIT LAB</span> 3:3 ADMIN
                     </h1>
+                    <button onClick={() => { window.location.href = '/tournament.html'; }}
+                        className="flex items-center gap-2 px-4 py-2 text-sm tracking-wider text-[#8ea0c2] hover:text-[#e9e1ca] border-2 border-[#33456a] hover:border-[#ee7c1b] transition"
+                        title="대회 결과 대시보드 (Standing · All Games · Bracket)">
+                        <LayoutDashboard size={16} /> 대시보드
+                    </button>
                 </div>
 
                 {activeTournament && (
