@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
@@ -63,6 +63,66 @@ const byPlayOrder = (a, b) =>
     ((PHASE_RANK[a.round] ?? 9) - (PHASE_RANK[b.round] ?? 9))
     || (a.match_order - b.match_order)
     || a.round.localeCompare(b.round);
+
+// ── 4강 자동 시딩 (빌더 tournament.html computeQualification/buildBracket 이식 — 이름 기반) ──
+// 한 라운드(조)의 경기들 → 순위 행 (승수 → 득실차 → 다득점)
+const standingRowsFor = (games) => {
+    const stat = {};
+    games.forEach(m => {
+        const ensure = nm => (stat[nm] = stat[nm] || { name: nm, w: 0, l: 0, pf: 0, pa: 0 });
+        const A = ensure(m.team_a_name), B = ensure(m.team_b_name);
+        if (m.status !== 'ENDED') return;
+        const sa = m.team_a_score || 0, sb = m.team_b_score || 0;
+        A.pf += sa; A.pa += sb; B.pf += sb; B.pa += sa;
+        const aWon = m.winner ? m.winner === 'A_WIN' : sa > sb;
+        if (sa === sb && !m.winner) return;
+        if (aWon) { A.w++; B.l++; } else { B.w++; A.l++; }
+    });
+    return Object.values(stat).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf);
+};
+
+// 진출 4팀 계산 + 4강 매치업 (1시드 vs 4시드 / 2 vs 3, 같은 조 회피)
+// 각 조 1위 자동 진출, 와일드카드(4−조수) = 2위들 비교: 득실차 → 다득점 → 최소실점.
+// 후보 경기 수가 다르면 경기당 평균으로 비교(공정성). 동률 경계는 결정적 선발 + needsDraw 플래그만.
+const computeSemiSeeding = (ms) => {
+    const groupGames = ms.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
+    const groupRounds = [...new Set(groupGames.map(m => m.round))].sort();
+    if (!groupRounds.length) return null;
+    const gs = groupRounds.map(r => standingRowsFor(groupGames.filter(m => m.round === r)));
+    const wrap = (row, gi, rank) => ({
+        name: row.name, group: groupRounds[gi], rank: rank + 1, via: rank === 0 ? 'win' : 'wc',
+        gp: row.w + row.l, diff: row.pf - row.pa, pf: row.pf, pa: row.pa,
+    });
+    const G = groupRounds.length;
+    let qualified, needsDraw = false;
+    if (G === 1) {
+        qualified = gs[0].slice(0, 4).map((r, i) => wrap(r, 0, i));
+    } else if (G >= 4) {
+        qualified = gs.map((rows, gi) => rows[0] && wrap(rows[0], gi, 0)).filter(Boolean).slice(0, 4);
+    } else {
+        const winners = gs.map((rows, gi) => rows[0] && wrap(rows[0], gi, 0)).filter(Boolean);
+        const slots = 4 - G;
+        const pool = [];
+        const maxSize = Math.max(...gs.map(s => s.length));
+        for (let rank = 1; pool.length < slots && rank < maxSize; rank++)
+            gs.forEach((rows, gi) => { if (rows[rank]) pool.push(wrap(rows[rank], gi, rank)); });
+        const perGame = new Set(pool.map(c => c.gp)).size > 1;
+        const met = c => { const n = c.gp || 1; return perGame ? [c.diff / n, c.pf / n, c.pa / n] : [c.diff, c.pf, c.pa]; };
+        pool.sort((a, b) => { const x = met(a), y = met(b); return (y[0] - x[0]) || (y[1] - x[1]) || (x[2] - y[2]); });
+        if (pool.length > slots) {
+            const eq = (x, y) => x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+            needsDraw = eq(met(pool[slots - 1]), met(pool[slots]));
+        }
+        qualified = winners.concat(pool.slice(0, slots));
+    }
+    if (qualified.length < 4) return null; // 4강 고정 포맷 — 4팀 미만이면 자동 시딩하지 않음 (수동 편성 영역)
+    const q = qualified;
+    const semis = [[q[0], q[3]], [q[1], q[2]]];
+    if (semis[0][0].group === semis[0][1].group) { // 같은 조 회피 — 상대(하위 시드) 교환
+        const t = semis[0][1]; semis[0][1] = semis[1][1]; semis[1][1] = t;
+    }
+    return { semis, qualified, needsDraw };
+};
 
 const statusColor = (s) => {
     if (s === 'ENDED') return '#d8302c'; // GRIT LAB red
@@ -138,7 +198,6 @@ const playBuzzer = () => _playBuf(_gameBuf);
 const playBuzzerShot = () => _playBuf(_shotBuf);
 
 export default function ThreeVThreeAdmin() {
-    const navigate = useNavigate();
     const { id: urlTournamentId } = useParams();
 
     // 로그인 가드 — 세션 없으면 grit-login으로 (grit-login.html/tournament.html과 localStorage 세션 공유)
@@ -187,6 +246,11 @@ export default function ThreeVThreeAdmin() {
     const [intermissionSec, setIntermissionSec] = useState(90);
     const [intermissionRunning, setIntermissionRunning] = useState(true);
     const [intermissionNext, setIntermissionNext] = useState(null);
+    // ── 대진 자동 완성 (예선 종료 → 4강 시딩) ──
+    const [autoSemiInfo, setAutoSemiInfo] = useState(null); // {qualified, needsDraw} — 인터미션 브라켓 배지용
+    const autoFillBusyRef = useRef(false);
+    // ── 운영 모드: null=선택 화면, 'builder'=관리 화면, 'tournament'=전광판↔대기모드 사이클 ──
+    const [adminMode, setAdminMode] = useState(null);
     const [editTarget, setEditTarget] = useState(null);
     const [tempMins, setTempMins] = useState(0);
     const [tempSecs, setTempSecs] = useState(0);
@@ -261,6 +325,7 @@ export default function ThreeVThreeAdmin() {
 
     // ── 경기 목록 로드 ──
     useEffect(() => {
+        setAutoSemiInfo(null); // 대회 전환 시 자동시딩 배지 초기화
         if (!activeTournamentId) { setMatches([]); setAllMatches([]); return; }
         fetchMatches();
     }, [activeTournamentId]);
@@ -468,8 +533,79 @@ export default function ThreeVThreeAdmin() {
                 winner, status: winner ? 'ENDED' : match.status, updated_at: new Date().toISOString(),
             }).eq('id', match.id);
         if (error) { alert('저장 실패: ' + error.message); }
-        else { setAllMatches(prev => prev.map(m => m.id === match.id ? { ...m, winner, status: winner ? 'ENDED' : m.status } : m)); }
+        else {
+            const next = allMatches.map(m => m.id === match.id ? { ...m, ...match, winner, status: winner ? 'ENDED' : m.status } : m);
+            setAllMatches(next);
+            maybeAutoFillBracket(next); // 마지막 예선/4강 종료 감지 → 대진 자동 완성
+        }
         setSaving(null);
+    };
+
+    // ── 대진 자동 완성: 예선 전부 종료 → 4강 시딩, 4강 전부 종료 → 결승 매치업 ──
+    // 운영자가 이미 팀명을 넣어둔 row는 절대 덮어쓰지 않는다 (수동 편성 보호).
+    const maybeAutoFillBracket = async (ms) => {
+        if (!activeTournamentId || autoFillBusyRef.current) return;
+        autoFillBusyRef.current = true;
+        try {
+            const groupGames = ms.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
+            const semiRows = ms.filter(m => m.round === 'SEMI').sort((a, b) => a.match_order - b.match_order);
+
+            // 1) 예선 전부 종료 + SEMI 전부 비어있음 → 4강 시딩
+            if (groupGames.length && groupGames.every(m => m.status === 'ENDED')
+                && !semiRows.some(m => m.team_a_name || m.team_b_name)) {
+                const seeding = computeSemiSeeding(ms);
+                if (!seeding) return;
+                const written = [];
+                for (let i = 0; i < 2; i++) {
+                    const [a, b] = seeding.semis[i];
+                    const row = semiRows[i];
+                    if (row) {
+                        const fields = { team_a_name: a.name, team_b_name: b.name, updated_at: new Date().toISOString() };
+                        const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', row.id);
+                        if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
+                        written.push({ ...row, ...fields });
+                    } else {
+                        const { data, error } = await supabase.from('game_3v3_brackets').insert([{
+                            tournament_id: activeTournamentId, round: 'SEMI', match_order: i + 1,
+                            team_a_name: a.name, team_b_name: b.name,
+                            team_a_score: 0, team_b_score: 0, status: 'PENDING',
+                        }]).select().single();
+                        if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
+                        written.push(data);
+                    }
+                }
+                setAllMatches(prev => {
+                    const ids = new Set(written.map(w => w.id));
+                    return [...prev.filter(m => !ids.has(m.id)), ...written];
+                });
+                setAutoSemiInfo({ qualified: seeding.qualified, needsDraw: seeding.needsDraw });
+                return;
+            }
+
+            // 2) 4강 2경기 전부 종료 + FINAL 비어있음 → 결승 매치업 채움
+            const semiNamed = semiRows.filter(m => m.team_a_name && m.team_b_name);
+            if (semiNamed.length === 2 && semiNamed.every(m => m.status === 'ENDED' && m.winner)) {
+                const finalRow = ms.find(m => m.round === 'FINAL');
+                if (finalRow && (finalRow.team_a_name || finalRow.team_b_name)) return; // 수동 편성 보호
+                const winnerOf = m => (m.winner === 'A_WIN' ? m.team_a_name : m.team_b_name);
+                const wa = winnerOf(semiNamed[0]), wb = winnerOf(semiNamed[1]);
+                if (finalRow) {
+                    const fields = { team_a_name: wa, team_b_name: wb, updated_at: new Date().toISOString() };
+                    const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', finalRow.id);
+                    if (error) { alert('결승 자동 편성 실패: ' + error.message); return; }
+                    setAllMatches(prev => prev.map(m => m.id === finalRow.id ? { ...m, ...fields } : m));
+                } else {
+                    const { data, error } = await supabase.from('game_3v3_brackets').insert([{
+                        tournament_id: activeTournamentId, round: 'FINAL', match_order: 1,
+                        team_a_name: wa, team_b_name: wb, team_a_score: 0, team_b_score: 0, status: 'PENDING',
+                    }]).select().single();
+                    if (error) { alert('결승 자동 편성 실패: ' + error.message); return; }
+                    setAllMatches(prev => [...prev, data]);
+                }
+            }
+        } finally {
+            autoFillBusyRef.current = false;
+        }
     };
 
     const handleDeleteMatch = async (match) => {
@@ -579,8 +715,10 @@ export default function ThreeVThreeAdmin() {
         };
         const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', match.id);
         if (error) { alert('몰수패 처리 실패: ' + error.message); return; }
-        setAllMatches(prev => prev.map(m => m.id === match.id ? { ...m, ...fields } : m));
+        const next = allMatches.map(m => m.id === match.id ? { ...m, ...fields } : m);
+        setAllMatches(next);
         setForfeitTarget(null);
+        maybeAutoFillBracket(next); // 몰수패가 마지막 예선/4강 경기일 수 있음
     };
 
     // ── 라이브 기록 시작 ──
@@ -602,7 +740,7 @@ export default function ThreeVThreeAdmin() {
         if (!mid || liveMatch || !allMatches.length) return;
         const m = allMatches.find(x => String(x.id) === String(mid));
         sessionStorage.removeItem('gritlab_autostart_match'); // 1회성 소비
-        if (m) startLiveRecord(m);
+        if (m) { setAdminMode('tournament'); startLiveRecord(m); } // 대시보드에서 진입 = 전광판 사이클(대회 모드)
     }, [allMatches]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // 경기 진행/탐색용 정렬본 (예선 조 교차 — A1·B1·A2·B2…, 이후 본선)
@@ -646,18 +784,43 @@ export default function ThreeVThreeAdmin() {
         setIntermissionRunning(false);
     }, [showIntermission, intermissionSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // 인터미션 제어
+    // 인터미션의 실제 '다음 경기' — 저장 직후 4강 자동 시딩이 비동기로 끝나면 intermissionNext가
+    // 스테일(null)일 수 있어, 현재 allMatches 기준 다음 PENDING 경기로 폴백한다
+    const intermissionNextResolved = intermissionNext
+        || orderedMatches.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name)
+        || null;
+
+    // 인터미션 제어 — 대회 모드에서 다음 경기가 없으면 모드 선택으로 (경기 목록 미노출)
     const startNextNow = () => {
         setShowIntermission(false);
-        if (intermissionNext) startLiveRecord(intermissionNext);
+        if (intermissionNextResolved) startLiveRecord(intermissionNextResolved);
+        else if (adminMode === 'tournament') setAdminMode(null);
+    };
+
+    // ── 대회 모드 진입: 다음 미종료 경기의 전광판부터 시작. 없으면 대기 화면 ──
+    const enterTournamentMode = () => {
+        setAdminMode('tournament');
+        const nxt = orderedMatches.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name);
+        if (nxt) { startLiveRecord(nxt); return; }
+        setIntermissionNext(null);
+        setIntermissionSec(0);
+        setIntermissionRunning(false);
+        setShowIntermission(true);
     };
 
     // 라이브 점수가 저장본과 다른지 (미저장 상태)
     const liveDirty = () => liveMatch && (teamAScore !== (liveMatch.team_a_score || 0) || teamBScore !== (liveMatch.team_b_score || 0));
 
     const closeLiveWithoutSave = () => {
-        if (liveDirty() && !window.confirm('현재 경기 점수가 저장되지 않았습니다. 저장하지 않고 목록으로 나갈까요?')) return;
+        if (liveDirty() && !window.confirm('현재 경기 점수가 저장되지 않았습니다. 저장하지 않고 나갈까요?')) return;
         setTimerRunning(false);
+        // 대회 모드: 경기 목록 대신 대기 화면으로 (카운트다운 없이 즉시 시작 가능 상태)
+        if (adminMode === 'tournament') {
+            setIntermissionNext(findNextMatch(liveMatch.id));
+            setIntermissionSec(0);
+            setIntermissionRunning(false);
+            setShowIntermission(true);
+        }
         setLiveMatch(null);
     };
 
@@ -707,12 +870,52 @@ export default function ThreeVThreeAdmin() {
     }
 
     // ═══════════════════════════════════
+    //  모드 선택 (진입 게이트) — 경기장 TV에 관리 정보가 노출되지 않도록 진입 시 모드부터 고른다
+    // ═══════════════════════════════════
+    if (!adminMode) {
+        const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
+        const anton = "'Anton', 'Pretendard', sans-serif";
+        const pre = "'Pretendard', sans-serif";
+        const modeBtn = {
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.6vh',
+            width: 'min(38vw, 380px)', padding: '5vh 2vw', borderRadius: 16, cursor: 'pointer',
+            border: `2px solid ${C.line}`, background: C.navy2, color: C.cream, fontFamily: anton,
+        };
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4vh', padding: '4vh 4vw',
+                background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton }}>
+                <img src="/gritlab-logo.png" alt="GRIT LAB" style={{ height: '9vh', objectFit: 'contain' }} />
+                <div style={{ fontSize: '2vh', letterSpacing: '.34em', color: C.muted }}>3X3 ADMIN · 모드 선택</div>
+                <select value={activeTournamentId || ''} onChange={e => setActiveTournamentId(e.target.value)}
+                    style={{ fontFamily: pre, fontWeight: 700, fontSize: '2vh', padding: '1.2vh 1.4vw', borderRadius: 10,
+                        background: C.navy2, color: C.cream, border: `2px solid ${C.line}`, maxWidth: '80vw' }}>
+                    {tournaments.map(t => <option key={t.id} value={t.id}>{t.title}{t.status === 'ENDED' ? ' (종료)' : ''}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: '3vw', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button onClick={() => setAdminMode('builder')} style={modeBtn}>
+                        <span style={{ fontSize: '4vh' }}>🛠</span>
+                        <span style={{ fontSize: '3vh', letterSpacing: '.1em' }}>빌더 모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>경기 편성 · 결과 관리 (운영자 전용)</span>
+                    </button>
+                    <button onClick={enterTournamentMode} disabled={!activeTournamentId}
+                        style={{ ...modeBtn, border: `2px solid ${C.orange}`, opacity: activeTournamentId ? 1 : .5, cursor: activeTournamentId ? 'pointer' : 'not-allowed' }}>
+                        <span style={{ fontSize: '4vh' }}>🏀</span>
+                        <span style={{ fontSize: '3vh', letterSpacing: '.1em', color: C.orange }}>대회 모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>전광판 ↔ 대기 화면만 표시 (TV 출력)</span>
+                    </button>
+                </div>
+                <div style={{ fontFamily: pre, fontSize: '1.6vh', color: C.muted }}>대회 모드에서는 경기 목록·팀 명단이 화면에 노출되지 않습니다</div>
+            </div>
+        );
+    }
+
+    // ═══════════════════════════════════
     //  인터미션 (경기 종료 후 다음 경기 안내 카운트다운) — GRIT LAB 3X3 톤
     // ═══════════════════════════════════
     if (showIntermission) {
         const mm = String(Math.floor(intermissionSec / 60)).padStart(2, '0');
         const ss = String(intermissionSec % 60).padStart(2, '0');
-        const nx = intermissionNext;
+        const nx = intermissionNextResolved;
         const nxRound = nx ? (ROUNDS.find(r => r.id === nx.round)?.label || nx.round) : null;
         const C = { navy: '#16243f', navy2: '#1d2e4d', line: '#33456a', cream: '#e9e1ca', orange: '#ee7c1b', green: '#34c13e', muted: '#7e90b3' };
         const anton = "'Anton', 'Pretendard', sans-serif";
@@ -746,6 +949,14 @@ export default function ThreeVThreeAdmin() {
         const thS = { padding: `0.8vh ${(0.8 * gs).toFixed(2)}vw`, textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: '1.7vh' };
         const thL = { ...thS, textAlign: 'left' };
 
+        // 예선 전부 종료 + 4강 시딩 완료 → 순위표 대신 본선 브라켓을 보여준다 (사장 요청: 마지막 예선 후 대기 타임에 대진표)
+        const groupGamesAll = allMatches.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
+        const groupsAllDone = groupGamesAll.length > 0 && groupGamesAll.every(m => m.status === 'ENDED');
+        const semiMatches = allMatches.filter(m => m.round === 'SEMI' && m.team_a_name && m.team_b_name).sort((a, b) => a.match_order - b.match_order);
+        const finalMatch = allMatches.find(m => m.round === 'FINAL' && m.team_a_name && m.team_b_name);
+        const showBracket = groupsAllDone && semiMatches.length > 0;
+        const qualOf = nm => autoSemiInfo?.qualified?.find(t => t.name === nm); // 진출 근거 배지 (자동시딩 직후에만)
+
         return (
             <div style={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column', gap: '1.6vh', padding: '2vh 1.6vw',
                 background: 'radial-gradient(120% 120% at 50% -10%, #1d2e4d 0%, #16243f 60%)', color: C.cream, fontFamily: anton, overflow: 'hidden' }}>
@@ -768,8 +979,43 @@ export default function ThreeVThreeAdmin() {
                     )}
                 </div>
 
-                {/* 중앙: 조별 순위표 — 조 개수만큼 가로 배치 (1|2|3), 열 너비 비례로 글자 축소 */}
-                {groupStandings.length > 0 ? (
+                {/* 중앙: 예선 종료 후엔 본선 브라켓, 그 전엔 조별 순위표 */}
+                {showBracket ? (
+                    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '2vh', justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center', fontSize: '2.2vh', letterSpacing: '.3em', color: C.orange }}>
+                            본선 대진 확정{autoSemiInfo?.needsDraw ? ' · ⚠️ 와일드카드 완전 동률 — 추첨 확인 필요' : ''}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2vh 2vw', flex: 1, minHeight: 0 }}>
+                            {semiMatches.slice(0, 2).map((m, i) => (
+                                <div key={m.id} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '3vh 2vw', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '1.8vh', minWidth: 0 }}>
+                                    <div style={{ fontSize: '2vh', letterSpacing: '.24em', color: C.orange }}>SEMIFINAL {i + 1}</div>
+                                    {[[m.team_a_name, m.team_a_score, m.winner === 'A_WIN'], [m.team_b_name, m.team_b_score, m.winner === 'B_WIN']].map(([nm, sc, win], j) => {
+                                        const q = qualOf(nm);
+                                        return (
+                                            <div key={j} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, minWidth: 0 }}>
+                                                <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(3vh, 2.6vw, 5.5vh)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: m.status === 'ENDED' && !win ? C.muted : C.cream }}>
+                                                    {nm}
+                                                    {q && <span style={{ fontWeight: 600, fontSize: '1.6vh', color: q.via === 'win' ? C.green : C.orange, marginLeft: 10 }}>
+                                                        {q.group.replace('GROUP_', '')}조 {q.rank}위{q.via === 'wc' ? ' · WC' : ''}
+                                                    </span>}
+                                                </div>
+                                                {m.status === 'ENDED' && <div style={{ fontFamily: pre, fontWeight: 800, fontSize: '4vh', color: win ? C.green : C.muted, fontVariantNumeric: 'tabular-nums' }}>{sc}</div>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ border: `2px solid ${C.orange}`, background: C.navy2, borderRadius: 12, padding: '2vh 2vw', textAlign: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '1.8vh', letterSpacing: '.3em', color: C.orange, marginRight: 18 }}>FINAL</span>
+                            <span style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(2.6vh, 2.2vw, 4.5vh)' }}>
+                                {finalMatch
+                                    ? <>{finalMatch.team_a_name} <span style={{ color: C.muted, fontWeight: 400 }}>vs</span> {finalMatch.team_b_name}</>
+                                    : <span style={{ color: C.muted }}>4강 승자 vs 4강 승자</span>}
+                            </span>
+                        </div>
+                    </div>
+                ) : groupStandings.length > 0 ? (
                     <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${gsCols}, minmax(0, 1fr))`, gap: '1.5vh 1.5vw', alignContent: 'start', overflow: 'auto' }}>
                         {groupStandings.map(g => (
                             <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: `1.4vh ${(1.2 * gs).toFixed(2)}vw`, minWidth: 0 }}>
@@ -812,7 +1058,7 @@ export default function ThreeVThreeAdmin() {
                             style={{ fontFamily: anton, fontSize: '2.1vh', letterSpacing: '.06em', padding: '1.4vh 2.4vw', border: 'none',
                                 background: waiting ? C.line : (nx ? C.green : C.orange), color: waiting ? C.muted : '#0c1a0e',
                                 cursor: waiting ? 'not-allowed' : 'pointer', opacity: waiting ? .7 : 1 }}>
-                            {!nx ? '관리 화면으로' : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
+                            {!nx ? (adminMode === 'tournament' ? '모드 선택으로' : '관리 화면으로') : waiting ? '다음 경기 시작 (대기 중)' : '▶ 다음 경기 시작'}
                         </button>
                     </div>
                     {waiting && <div style={{ fontSize: '1.5vh', letterSpacing: '.12em', color: C.muted }}>대기 시간이 끝나면 시작 버튼이 활성화됩니다</div>}
@@ -1110,7 +1356,7 @@ export default function ThreeVThreeAdmin() {
             {/* Header */}
             <header className="border-b-2 border-[#33456a] px-6 py-4 flex items-center justify-between bg-[#16243f]/85 backdrop-blur sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/tournament/dashboard')} className="text-[#8ea0c2] hover:text-[#e9e1ca] transition">
+                    <button onClick={() => setAdminMode(null)} className="text-[#8ea0c2] hover:text-[#e9e1ca] transition" title="모드 선택으로">
                         <ArrowLeft size={20} />
                     </button>
                     <h1 className="text-xl tracking-[0.06em]">
