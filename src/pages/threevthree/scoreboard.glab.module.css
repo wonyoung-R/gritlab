@@ -336,7 +336,9 @@
     justify-content: center;
     gap: 10px;
     z-index: 10;
-    width: 600px;
+    /* 고정 600px는 좁은 화면에서 좌우 콘텐츠와 겹치며 잘림 — 내용 크기에 맞춤 */
+    width: auto;
+    max-width: min(600px, 50vw);
     text-align: center;
 }
 .periodText {
