@@ -737,7 +737,13 @@ export default function ThreeVThreeAdmin() {
                 rows: Object.values(groups[g]).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf),
             }));
         })();
-        const thS = { padding: '0.8vh 0.8vw', textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: '1.7vh' };
+        // 조 개수만큼 가로 1열 배치(1|2|3, 5조+는 2행) — 3조일 때 세 번째 조가 아래로 짤리는 문제 수정.
+        // 글자/여백은 열 너비에 비례 축소 (기존 수치는 카드 폭 ≈44vw 기준).
+        const gsCols = groupStandings.length <= 4 ? Math.max(groupStandings.length, 1) : Math.ceil(groupStandings.length / 2);
+        const gs = ((100 - 3.2 - (gsCols - 1) * 1.5) / gsCols) / 44; // (100vw − 좌우패딩 − gap×(열−1)) ÷ 열수 ÷ 기존 카드폭
+        const tdPad = `0.9vh ${(0.8 * gs).toFixed(2)}vw`;
+
+        const thS = { padding: `0.8vh ${(0.8 * gs).toFixed(2)}vw`, textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: '1.7vh' };
         const thL = { ...thS, textAlign: 'left' };
 
         return (
@@ -762,25 +768,25 @@ export default function ThreeVThreeAdmin() {
                     )}
                 </div>
 
-                {/* 중앙: 조별 순위표 (전체 폭, 자동 그리드) */}
+                {/* 중앙: 조별 순위표 — 조 개수만큼 가로 배치 (1|2|3), 열 너비 비례로 글자 축소 */}
                 {groupStandings.length > 0 ? (
-                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(44vw, 100%), 1fr))', gap: '1.5vh 1.5vw', alignContent: 'start', overflow: 'auto' }}>
+                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${gsCols}, minmax(0, 1fr))`, gap: '1.5vh 1.5vw', alignContent: 'start', overflow: 'auto' }}>
                         {groupStandings.map(g => (
-                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '1.4vh 1.2vw' }}>
-                                <div style={{ fontFamily: anton, fontSize: 'clamp(3vh, 2.4vw, 5vh)', color: C.orange, letterSpacing: '.06em', marginBottom: '1vh' }}>{g.label}</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums', fontSize: '2.2vh' }}>
+                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: `1.4vh ${(1.2 * gs).toFixed(2)}vw`, minWidth: 0 }}>
+                                <div style={{ fontFamily: anton, fontSize: `clamp(2.4vh, ${(2.4 * gs).toFixed(2)}vw, 5vh)`, color: C.orange, letterSpacing: '.06em', marginBottom: '1vh' }}>{g.label}</div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums', fontSize: gsCols >= 3 ? '2vh' : '2.2vh' }}>
                                     <thead><tr><th style={thL}>#</th><th style={thL}>팀</th><th style={thS}>승-패</th><th style={thS}>득</th><th style={thS}>실</th><th style={thS}>+/-</th></tr></thead>
                                     <tbody>
                                         {g.rows.map((r, i) => {
                                             const diff = r.pf - r.pa;
                                             return (
                                                 <tr key={r.name} style={{ borderTop: `1px solid ${C.line}` }}>
-                                                    <td style={{ padding: '0.9vh 0.8vw', color: C.muted, fontWeight: 700 }}>{i + 1}</td>
-                                                    <td style={{ padding: '0.9vh 0.8vw', fontWeight: 800, fontSize: 'clamp(2.4vh, 1.9vw, 4vh)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '22vw' }}>{r.name}</td>
-                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
-                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', color: C.muted }}>{r.pf}</td>
-                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', color: C.muted }}>{r.pa}</td>
-                                                    <td style={{ padding: '0.9vh 0.8vw', textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
+                                                    <td style={{ padding: tdPad, color: C.muted, fontWeight: 700 }}>{i + 1}</td>
+                                                    <td style={{ padding: tdPad, fontWeight: 800, fontSize: `clamp(2vh, ${(1.9 * gs).toFixed(2)}vw, 4vh)`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: `${(22 * gs).toFixed(1)}vw` }}>{r.name}</td>
+                                                    <td style={{ padding: tdPad, textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
+                                                    <td style={{ padding: tdPad, textAlign: 'right', color: C.muted }}>{r.pf}</td>
+                                                    <td style={{ padding: tdPad, textAlign: 'right', color: C.muted }}>{r.pa}</td>
+                                                    <td style={{ padding: tdPad, textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
                                                 </tr>
                                             );
                                         })}
