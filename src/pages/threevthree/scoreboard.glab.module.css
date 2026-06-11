@@ -1504,3 +1504,19 @@
 /* ── PR-E: 라이브 전광판 좌우 여백 최소화 — 화면 꽉 채움 (Admin 전용 glab CSS, 바탕화면 무영향) ── */
 .scoreboard .header { padding: 20px 22px; }
 .scoreboard .main { padding: 0 14px; }
+
+/* ── PR-E2: TV 원거리 가독성 — 핵심 정보 뷰포트 단위 사이징 (파일 끝 = 캐스케이드 최우선)
+   설계 기준: 노트북 → 40인치 TV(화면높이 ≈50cm, 1vh ≈ 0.5cm) · 시청거리 15m · 해상도 무관
+   물리 타깃(1차값, 실측 보정 예정): 점수 ≥15cm(30vh) · 클락 ≥10cm(20vh) · 팀명 ≥8cm(16vh)
+   min(vh, vw)으로 좁은 화면(노트북·iPad)에서는 가로폭에 맞춰 자동 축소 ── */
+.scoreGiant { font-size: min(30vh, 19vw); line-height: 0.92; }
+.timerGroup .timerGiant { font-size: min(20vh, 12vw); }
+.shotClockGroup .shotClockGiant { font-size: min(20vh, 12vw); }
+.teamNameHuge { font-size: min(16vh, calc(58vw / var(--name-len, 6))); line-height: 1.05; }
+.timerLabel, .foulLabel { font-size: 1.8vh; }
+.foulIndicatorDot { width: 2.2vh; height: 2.2vh; }
+.timeoutBall { font-size: 4vh; }
+.penaltyBadge { font-size: 2vh; }
+/* 여백: 고정 px → 뷰포트 비례 최소값 */
+.scoreboard .header { padding: 1.6vh 1.2vw; }
+.scoreboard .main { padding: 0 1vw; }
