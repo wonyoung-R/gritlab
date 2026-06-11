@@ -246,6 +246,7 @@ export default function ThreeVThreeAdmin() {
     const [intermissionSec, setIntermissionSec] = useState(90);
     const [intermissionRunning, setIntermissionRunning] = useState(true);
     const [intermissionNext, setIntermissionNext] = useState(null);
+    const [groupRotation, setGroupRotation] = useState(0);  // 인터미션 조별 순환 인덱스 (10초마다 +1)
     // ── 대진 자동 완성 (예선 종료 → 4강 시딩) ──
     const [autoSemiInfo, setAutoSemiInfo] = useState(null); // {qualified, needsDraw} — 인터미션 브라켓 배지용
     const autoFillBusyRef = useRef(false);
@@ -784,6 +785,16 @@ export default function ThreeVThreeAdmin() {
         setIntermissionRunning(false);
     }, [showIntermission, intermissionSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // 인터미션 조별 순환 — 10초마다 다음 조 (90초 ÷ 10초 = 9슬롯).
+    // 일시정지 중에는 화면 고정, 카운트다운 종료 후에는 운영자가 시작 누를 때까지 계속 순환.
+    useEffect(() => {
+        if (!showIntermission) { setGroupRotation(0); return; }
+        const explicitPause = !intermissionRunning && intermissionSec > 0;
+        if (explicitPause) return;
+        const t = setInterval(() => setGroupRotation(r => r + 1), 10000);
+        return () => clearInterval(t);
+    }, [showIntermission, intermissionRunning, intermissionSec > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // 인터미션의 실제 '다음 경기' — 저장 직후 4강 자동 시딩이 비동기로 끝나면 intermissionNext가
     // 스테일(null)일 수 있어, 현재 allMatches 기준 다음 PENDING 경기로 폴백한다
     const intermissionNextResolved = intermissionNext
@@ -894,17 +905,17 @@ export default function ThreeVThreeAdmin() {
                 <div style={{ display: 'flex', gap: '3vw', flexWrap: 'wrap', justifyContent: 'center' }}>
                     <button onClick={() => setAdminMode('builder')} style={modeBtn}>
                         <span style={{ fontSize: '4vh' }}>🛠</span>
-                        <span style={{ fontSize: '3vh', letterSpacing: '.1em' }}>빌더 모드</span>
-                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>경기 편성 · 결과 관리 (운영자 전용)</span>
+                        <span style={{ fontSize: '3vh', letterSpacing: '.1em' }}>관리자모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>대회 빌드 · 대진 컨트롤 · 수동 편성 (운영자 전용)</span>
                     </button>
                     <button onClick={enterTournamentMode} disabled={!activeTournamentId}
                         style={{ ...modeBtn, border: `2px solid ${C.orange}`, opacity: activeTournamentId ? 1 : .5, cursor: activeTournamentId ? 'pointer' : 'not-allowed' }}>
                         <span style={{ fontSize: '4vh' }}>🏀</span>
-                        <span style={{ fontSize: '3vh', letterSpacing: '.1em', color: C.orange }}>대회 모드</span>
-                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>전광판 ↔ 대기 화면만 표시 (TV 출력)</span>
+                        <span style={{ fontSize: '3vh', letterSpacing: '.1em', color: C.orange }}>대회모드</span>
+                        <span style={{ fontFamily: pre, fontWeight: 500, fontSize: '1.7vh', color: C.muted }}>경기 순서대로 전광판 ↔ 대기 화면 자동 진행 (TV 출력)</span>
                     </button>
                 </div>
-                <div style={{ fontFamily: pre, fontSize: '1.6vh', color: C.muted }}>대회 모드에서는 경기 목록·팀 명단이 화면에 노출되지 않습니다</div>
+                <div style={{ fontFamily: pre, fontSize: '1.6vh', color: C.muted }}>대회모드에서는 경기 목록·팀 명단이 화면에 노출되지 않습니다</div>
             </div>
         );
     }
@@ -940,14 +951,10 @@ export default function ThreeVThreeAdmin() {
                 rows: Object.values(groups[g]).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf),
             }));
         })();
-        // 조 개수만큼 가로 1열 배치(1|2|3, 5조+는 2행) — 3조일 때 세 번째 조가 아래로 짤리는 문제 수정.
-        // 글자/여백은 열 너비에 비례 축소 (기존 수치는 카드 폭 ≈44vw 기준).
-        const gsCols = groupStandings.length <= 4 ? Math.max(groupStandings.length, 1) : Math.ceil(groupStandings.length / 2);
-        const gs = ((100 - 3.2 - (gsCols - 1) * 1.5) / gsCols) / 44; // (100vw − 좌우패딩 − gap×(열−1)) ÷ 열수 ÷ 기존 카드폭
-        const tdPad = `0.9vh ${(0.8 * gs).toFixed(2)}vw`;
-
-        const thS = { padding: `0.8vh ${(0.8 * gs).toFixed(2)}vw`, textAlign: 'right', fontWeight: 600, color: C.muted, fontSize: '1.7vh' };
-        const thL = { ...thS, textAlign: 'left' };
+        // [PR-D 대체] 한 번에 한 조만 풀스크린 + 10초 순환 — 전 조 동시표시는 15m에서 글씨가 너무 작았음
+        const bigThL = { padding: '0.6vh 1vw', textAlign: 'left', fontWeight: 600, color: C.muted, fontSize: '2.2vh', letterSpacing: '.08em' };
+        const bigThR = { ...bigThL, textAlign: 'right' };
+        const bigTd = { padding: '1.6vh 1vw', fontSize: '4.6vh', fontWeight: 700 };
 
         // 예선 전부 종료 + 4강 시딩 완료 → 순위표 대신 본선 브라켓을 보여준다 (사장 요청: 마지막 예선 후 대기 타임에 대진표)
         const groupGamesAll = allMatches.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
@@ -1016,31 +1023,40 @@ export default function ThreeVThreeAdmin() {
                         </div>
                     </div>
                 ) : groupStandings.length > 0 ? (
-                    <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${gsCols}, minmax(0, 1fr))`, gap: '1.5vh 1.5vw', alignContent: 'start', overflow: 'auto' }}>
-                        {groupStandings.map(g => (
-                            <div key={g.round} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: `1.4vh ${(1.2 * gs).toFixed(2)}vw`, minWidth: 0 }}>
-                                <div style={{ fontFamily: anton, fontSize: `clamp(2.4vh, ${(2.4 * gs).toFixed(2)}vw, 5vh)`, color: C.orange, letterSpacing: '.06em', marginBottom: '1vh' }}>{g.label}</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums', fontSize: gsCols >= 3 ? '2vh' : '2.2vh' }}>
-                                    <thead><tr><th style={thL}>#</th><th style={thL}>팀</th><th style={thS}>승-패</th><th style={thS}>득</th><th style={thS}>실</th><th style={thS}>+/-</th></tr></thead>
+                    (() => {
+                        const gi = groupRotation % groupStandings.length;
+                        const g = groupStandings[gi];
+                        return (
+                            <div key={g.round} className={styles.intermissionGroupFade}
+                                style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 5vw', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.5vh', flexShrink: 0 }}>
+                                    <span style={{ fontFamily: anton, fontSize: '7vh', color: C.orange, letterSpacing: '.06em' }}>{g.label}</span>
+                                    {groupStandings.length > 1 && (
+                                        <span style={{ fontFamily: pre, fontWeight: 700, fontSize: '2.4vh', color: C.muted, letterSpacing: '.2em' }}>
+                                            GROUP {gi + 1}/{groupStandings.length}
+                                        </span>
+                                    )}
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: pre, fontVariantNumeric: 'tabular-nums' }}>
+                                    <thead><tr><th style={bigThL}>#</th><th style={bigThL}>팀</th><th style={bigThR}>승-패</th><th style={bigThR}>득점</th><th style={bigThR}>+/-</th></tr></thead>
                                     <tbody>
                                         {g.rows.map((r, i) => {
                                             const diff = r.pf - r.pa;
                                             return (
-                                                <tr key={r.name} style={{ borderTop: `1px solid ${C.line}` }}>
-                                                    <td style={{ padding: tdPad, color: C.muted, fontWeight: 700 }}>{i + 1}</td>
-                                                    <td style={{ padding: tdPad, fontWeight: 800, fontSize: `clamp(2vh, ${(1.9 * gs).toFixed(2)}vw, 4vh)`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: `${(22 * gs).toFixed(1)}vw` }}>{r.name}</td>
-                                                    <td style={{ padding: tdPad, textAlign: 'right', fontWeight: 700 }}>{r.w}-{r.l}</td>
-                                                    <td style={{ padding: tdPad, textAlign: 'right', color: C.muted }}>{r.pf}</td>
-                                                    <td style={{ padding: tdPad, textAlign: 'right', color: C.muted }}>{r.pa}</td>
-                                                    <td style={{ padding: tdPad, textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
+                                                <tr key={r.name} style={{ borderTop: `2px solid ${C.line}` }}>
+                                                    <td style={{ ...bigTd, color: C.muted, width: '6vw' }}>{i + 1}</td>
+                                                    <td style={{ ...bigTd, fontWeight: 800, fontSize: '5.2vh', maxWidth: '42vw', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</td>
+                                                    <td style={{ ...bigTd, textAlign: 'right' }}>{r.w}-{r.l}</td>
+                                                    <td style={{ ...bigTd, textAlign: 'right', color: C.muted }}>{r.pf}</td>
+                                                    <td style={{ ...bigTd, textAlign: 'right', fontWeight: 800, color: diff > 0 ? C.green : diff < 0 ? '#ff7a76' : C.muted }}>{diff > 0 ? '+' : ''}{diff}</td>
                                                 </tr>
                                             );
                                         })}
                                     </tbody>
                                 </table>
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })()
                 ) : (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, letterSpacing: '.16em' }}>예선 결과가 아직 없습니다</div>
                 )}
@@ -1048,6 +1064,11 @@ export default function ThreeVThreeAdmin() {
                 {/* 하단: 진행자 제어 — 90초 경과 후에만 '다음 경기 시작' 활성화. 자동 전환 없음 */}
                 <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 14 }}>
+                        <button onClick={() => { setShowIntermission(false); setAdminMode(null); }}
+                            title="대회모드 ⟷ 관리자모드 전환"
+                            style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>
+                            모드 선택
+                        </button>
                         {waiting && (
                             <button onClick={() => setIntermissionRunning(r => !r)}
                                 style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
