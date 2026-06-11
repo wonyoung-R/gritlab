@@ -446,7 +446,10 @@
   tr.standing-row.drag-over td { box-shadow: inset 0 2px 0 var(--orange); }
 
   .games { display: flex; flex-direction: column; gap: 14px; }
-  .game-card { background: var(--cream); padding: 14px 16px 12px; }
+  .game-card { background: var(--cream); padding: 14px 16px 12px; cursor: grab; }
+  /* 예선 경기 카드 드래그 정렬 */
+  .game-card.dragging { opacity: .4; }
+  .game-card.drag-over { outline: 2px dashed var(--orange); outline-offset: -2px; }
   .game-card .glabel {
     font-family: var(--display);
     font-size: 15px;
@@ -475,6 +478,10 @@
     overflow: hidden;
   }
   .matchup .team-box.r { justify-content: flex-end; }
+  /* 팀 슬롯 드래그 교환 (결석팀 대응 매치업 조정) */
+  .matchup .team-box { cursor: grab; }
+  .matchup .team-box.dragging { opacity: .4; }
+  .matchup .team-box.drag-over { outline: 2px dashed var(--orange); outline-offset: -2px; }
   .matchup .score-input {
     font-family: var(--display);
     font-size: 32px;
@@ -752,7 +759,7 @@
     <!-- STEP 3 -->
     <section id="s3" class="hidden">
       <div class="section-label"><span class="num">03</span> GROUP STAGE</div>
-      <p class="section-sub">조별 리그전 경기에 점수를 입력하면 순위표가 <b>자동 계산</b>됩니다 (승수 → 득실차 → 다득점). 초록색 = 본선 진출권.</p>
+      <p class="section-sub">조별 리그전 경기에 점수를 입력하면 순위표가 <b>자동 계산</b>됩니다 (승수 → 득실차 → 다득점). 초록색 = 본선 진출권. 경기 카드를 드래그하면 같은 조 안에서 <b>경기 순서</b>를, 팀 박스를 드래그하면 두 슬롯의 <b>팀을 맞교환</b>할 수 있습니다 (결석팀 조정).</p>
       <div class="panel">
         <div class="group-stage" id="groupStageWrap"></div>
         <div class="row-actions">
@@ -1041,6 +1048,11 @@ function makeFsSection(id, title){
   head.innerHTML = `<div class="round-title" style="text-align:left;margin:0">${title}</div>
     <button class="fs-btn" onclick="enterFs('${id}')" title="이 화면을 전체화면(TV)으로 표시 — ESC로 종료">⛶ 전체화면</button>`;
   sec.appendChild(head);
+  // 콘텐츠 래퍼 — 전체화면에서 내용이 넘치면 이 래퍼만 비율 축소(fit-to-screen)
+  const body = document.createElement('div');
+  body.className = 'fs-body';
+  sec.appendChild(body);
+  sec._body = body;
   return sec;
 }
 function enterFs(id){
@@ -1048,6 +1060,37 @@ function enterFs(id){
   if(!el) return;
   (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
 }
+// 전체화면 fit-to-screen — 콘텐츠가 화면을 넘으면 가로·세로 모두 들어가도록 비율 축소 (스크롤 제거)
+// vh 사이징(원거리 가독 기준)은 유지하되, 조/경기 수가 많아 넘칠 때만 줄어든다. 확대는 하지 않음.
+function fitFsContent(){
+  document.querySelectorAll('.fs-section .fs-body').forEach(b => {
+    b.style.transform = ''; b.style.width = '';
+  });
+  const sec = document.fullscreenElement;
+  if(!sec || !sec.classList || !sec.classList.contains('fs-section')) return;
+  const body = sec._body || sec.querySelector('.fs-body');
+  if(!body) return;
+  requestAnimationFrame(() => {
+    const head = sec.querySelector('.fs-head');
+    const cs = getComputedStyle(sec);
+    const availH = sec.clientHeight - (head ? head.offsetHeight + parseFloat(getComputedStyle(head).marginBottom) : 0)
+      - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const availW = sec.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    // 브라켓은 내부 가로 스크롤 컨테이너(.bracket-scroll)가 실제 폭을 숨기므로 함께 측정
+    const inner = body.querySelector('.bracket-scroll');
+    const needH = body.scrollHeight;
+    const needW = Math.max(body.scrollWidth, inner ? inner.scrollWidth : 0);
+    const fit = Math.min(availH / needH, availW / needW);
+    if(fit < 1){
+      const k = fit * 0.99; // 반올림 오차로 인한 1px 스크롤 방지 여유
+      body.style.transformOrigin = 'top left';
+      body.style.width = (100 / k) + '%'; // 축소 후에도 가로가 화면에 꽉 차도록 보상
+      body.style.transform = 'scale(' + k + ')';
+    }
+  });
+}
+document.addEventListener('fullscreenchange', fitFsContent);
+window.addEventListener('resize', fitFsContent);
 
 function renderTournamentResult(matches){
   const body = document.getElementById('resultBody');
@@ -1083,7 +1126,7 @@ function renderTournamentResult(matches){
       div.innerHTML = html;
       grid.appendChild(div);
     });
-    sec.appendChild(grid);
+    sec._body.appendChild(grid);
     body.appendChild(sec);
   }
 
@@ -1092,7 +1135,7 @@ function renderTournamentResult(matches){
   const final = matches.find(m => m.round === 'FINAL');
   if(semis.length || final){
     const sec = makeFsSection('fsBracket', 'BRACKET');
-    sec.appendChild(renderResultBracket(semis, final));
+    sec._body.appendChild(renderResultBracket(semis, final));
     body.appendChild(sec);
   }
 
@@ -1135,7 +1178,7 @@ function renderTournamentResult(matches){
       rows.appendChild(row);
     });
     block.appendChild(rows);
-    gamesSec.appendChild(block);
+    gamesSec._body.appendChild(block);
   });
 }
 
@@ -1650,6 +1693,40 @@ function resetStandingOrder(g){
   renderGroupStage();
 }
 
+// 팀 슬롯 맞교환 (드래그) — 같은 조 내에서만. 교환은 팀별 경기 수를 보존하는 유일한 변경 방식 (결석팀 대응)
+function swapTeamSlots(g, fromId, fromSide, toId, toSide){
+  if(!fromId || (fromId === toId && fromSide === toSide)) return;
+  const A = S.groupGames.find(x => x.id === fromId);
+  const B = S.groupGames.find(x => x.id === toId);
+  if(!A || !B || A.g !== g || B.g !== g) return;
+  const ak = fromSide === 'a' ? 'aId' : 'bId';
+  const bk = toSide === 'a' ? 'aId' : 'bId';
+  const t1 = A[ak], t2 = B[bk];
+  if(t1 === t2) return;
+  // 교환 후 같은 팀끼리 붙는 경기가 생기면 차단 (같은 경기 내 좌우 교환은 항상 안전)
+  if(A.id !== B.id && (t2 === A[ak === 'aId' ? 'bId' : 'aId'] || t1 === B[bk === 'aId' ? 'bId' : 'aId'])){
+    alert('교환하면 같은 팀끼리 경기하게 되어 불가합니다.');
+    return;
+  }
+  if((isDone(A) || isDone(B)) && !confirm('점수가 입력된 경기의 팀을 바꿉니다. 순위표가 즉시 재계산됩니다. 계속할까요?'))
+    return;
+  A[ak] = t2; B[bk] = t1;
+  S.bracket = null; S.lastQual = null;   // 매치업 변경 → 진출/본선 재계산 필요
+  renderGroupStage();
+}
+
+// 예선 경기 순서 변경 (드래그) — 같은 조 내에서만. 저장 시 match_order에 그대로 반영
+// 순위/진출 계산은 경기 순서와 무관하므로 bracket을 리셋하지 않는다
+function reorderGroupGame(dragId, dropId){
+  if(!dragId || dragId === dropId) return;
+  const from = S.groupGames.findIndex(m => m.id === dragId);
+  const to = S.groupGames.findIndex(m => m.id === dropId);
+  if(from === -1 || to === -1 || S.groupGames[from].g !== S.groupGames[to].g) return;
+  const [moved] = S.groupGames.splice(from, 1);
+  S.groupGames.splice(to, 0, moved);
+  renderGroupStage();
+}
+
 /* ===========================================================
    본선 진출 로직 (4강 고정)
    1) 각 조 1위 자동 진출
@@ -1953,6 +2030,21 @@ function renderGroupStage(){
         box.appendChild(note);
       }
     }
+    // 자가검증 2: 중복 매치업 — 팀 교환으로 생길 수 있음. 운영자 판단 영역이라 차단하지 않고 알림만
+    {
+      const pairSeen = new Set(), dups = [];
+      S.groupGames.filter(m => m.g === g).forEach(m => {
+        const k = Math.min(m.aId, m.bId) + '-' + Math.max(m.aId, m.bId);
+        if(pairSeen.has(k)) dups.push(escapeHtml(teamName(m.aId)) + ' vs ' + escapeHtml(teamName(m.bId)));
+        pairSeen.add(k);
+      });
+      if(dups.length){
+        const note = document.createElement('div');
+        note.style.cssText = 'margin:2px 0 8px;font-size:12px;color:var(--red);font-weight:600;';
+        note.innerHTML = '⚠️ 중복 매치업: ' + dups.join(', ') + ' — 같은 대진이 2회 이상 편성되어 있습니다';
+        box.appendChild(note);
+      }
+    }
     const cols = document.createElement('div'); cols.className = 'stage-cols';
 
     const rows = standings(g);
@@ -2000,6 +2092,46 @@ function renderGroupStage(){
                  onchange="setGroupScore(${m.id},'b',this.value)">
           <div class="team-box r">${escapeHtml(teamName(m.bId))}</div>
         </div>`;
+      // 카드 드래그 → 경기 순서 변경. 조 번호를 dataTransfer 타입에 인코딩해 같은 조에만 드롭 허용
+      const dragType = 'game-' + g;
+      card.draggable = true;
+      card.title = '드래그해 경기 순서 변경';
+      // 점수 입력에서 시작된 mousedown은 드래그로 가로채지 않음 (입력 조작 보호)
+      card.onmousedown = e => { card.draggable = !e.target.closest('.score-input'); };
+      card.ondragstart = e => { e.dataTransfer.setData(dragType, String(m.id)); card.classList.add('dragging'); };
+      card.ondragend = () => card.classList.remove('dragging');
+      card.ondragover = e => {
+        if(![...e.dataTransfer.types].includes(dragType)) return; // 다른 조 카드 거부
+        e.preventDefault(); card.classList.add('drag-over');
+      };
+      card.ondragleave = () => card.classList.remove('drag-over');
+      card.ondrop = e => {
+        e.preventDefault(); card.classList.remove('drag-over');
+        reorderGroupGame(+e.dataTransfer.getData(dragType), m.id);
+      };
+      // 팀 박스 드래그 → 같은 조 내 슬롯 간 팀 맞교환 (stopPropagation으로 카드 순서 드래그와 분리)
+      const slotType = 'slot-' + g;
+      card.querySelectorAll('.team-box').forEach((box, bi) => {
+        const side = bi === 0 ? 'a' : 'b';
+        box.draggable = true;
+        box.title = '드래그해 다른 슬롯의 팀과 교환';
+        box.ondragstart = e => {
+          e.stopPropagation();
+          e.dataTransfer.setData(slotType, m.id + ':' + side);
+          box.classList.add('dragging');
+        };
+        box.ondragend = () => box.classList.remove('dragging');
+        box.ondragover = e => {
+          if(![...e.dataTransfer.types].includes(slotType)) return; // 다른 조/카드 드래그 거부
+          e.preventDefault(); e.stopPropagation(); box.classList.add('drag-over');
+        };
+        box.ondragleave = () => box.classList.remove('drag-over');
+        box.ondrop = e => {
+          e.preventDefault(); e.stopPropagation(); box.classList.remove('drag-over');
+          const [fid, fside] = (e.dataTransfer.getData(slotType) || ':').split(':');
+          swapTeamSlots(g, +fid, fside, m.id, side);
+        };
+      });
       right.appendChild(card);
     });
 
