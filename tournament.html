@@ -445,6 +445,18 @@
   tr.standing-row.dragging { opacity: .4; }
   tr.standing-row.drag-over td { box-shadow: inset 0 2px 0 var(--orange); }
 
+  /* 전체 경기 순서 (조 교차) — 대회모드 진행 순서 사전 검증용 */
+  .play-order h3 { font-family: var(--display); font-size: 24px; letter-spacing: .04em; margin-bottom: 12px; }
+  .order-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px 14px; }
+  .order-row { display: flex; align-items: center; gap: 10px; background: var(--cream); padding: 9px 12px; font-family: var(--ui); font-size: 14px; color: var(--navy); }
+  .order-row.done { opacity: .55; }
+  .order-row .on { font-family: var(--display); color: var(--red); min-width: 34px; }
+  .order-row .og { font-family: var(--display); }
+  .order-row .or { font-size: 11px; color: #8ea0c2; letter-spacing: .08em; }
+  .order-row .ot { flex: 1; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .order-row .ot b { color: #8ea0c2; font-weight: 500; }
+  .order-row .os { font-family: var(--display); color: var(--green); }
+
   .games { display: flex; flex-direction: column; gap: 14px; }
   .game-card { background: var(--cream); padding: 14px 16px 12px; cursor: grab; }
   /* 예선 경기 카드 드래그 정렬 */
@@ -662,7 +674,7 @@
     <div class="nav">
       <button id="navTournaments" class="active" onclick="showView('tournaments')">TOURNAMENTS</button>
       <button id="navBuilder" onclick="showView('builder')">BUILDER</button>
-      <button id="navLive" onclick="location.href='/threevthree/admin'" title="라이브 전광판(키보드 조작) — 실제 경기 기록" style="color:#34c13e">🔴 라이브 전광판</button>
+      <button id="navLive" onclick="location.href='/threevthree/admin?manage=1'" title="라이브 전광판(키보드 조작) — 실제 경기 기록. 관리자모드 경로라 모드 선택 게이트 생략" style="color:#34c13e">🔴 라이브 전광판</button>
       <button id="navKbdGuide" onclick="openKbdImg()" title="키보드 전광판 조작 안내">⌨ 조작 안내</button>
       <span id="authEmail" style="font-family:var(--ui);font-size:12px;color:#8ea0c2;align-self:center;letter-spacing:0;font-weight:400"></span>
       <button id="navLogout" onclick="logout()" style="color:#8ea0c2">LOGOUT</button>
@@ -1016,7 +1028,7 @@ async function selectTournament(id){
     <h2>${escapeHtml(t.title)}</h2>
     <span class="pill ${t.status === 'ACTIVE' ? 'live' : 'ended'}" style="background:${t.status === 'ACTIVE' ? 'var(--green)' : 'var(--navy-line)'}">${t.status === 'ACTIVE' ? 'LIVE' : 'ENDED'}</span>
     <div class="actions">
-      <button class="btn btn-sm" style="background:#34c13e;color:#0c1a0e" onclick="location.href='/tournament/manage-3v3/${t.id}'" title="이 대회를 라이브 전광판(키보드 조작)에서 기록">🔴 라이브 전광판</button>
+      <button class="btn btn-sm" style="background:#34c13e;color:#0c1a0e" onclick="location.href='/tournament/manage-3v3/${t.id}?manage=1'" title="이 대회를 라이브 전광판(키보드 조작)에서 기록">🔴 라이브 전광판</button>
       ${t.status === 'ACTIVE' ? `<button class="btn ghost btn-sm" onclick="resumeInBuilder('${t.id}')">빌더에서 계속 →</button>` : ''}
       <button class="btn ${t.status === 'ACTIVE' ? 'btn-red' : 'btn-green'} btn-sm" onclick="toggleTournamentStatus('${t.id}')">
         ${t.status === 'ACTIVE' ? '대회 종료' : '대회 재개'}
@@ -2139,8 +2151,42 @@ function renderGroupStage(){
     box.appendChild(cols); wrap.appendChild(box);
   }
 
+  // ── 전체 경기 순서 (조 교차 A-B-A-B…) — 대회모드(전광판) 진행 순서·findNextMatch와 동일 ──
+  if(S.groupGames.length){
+    const sec = document.createElement('div');
+    sec.className = 'play-order';
+    sec.innerHTML = `<h3>전체 경기 순서<span class="reorder-hint">대회모드(전광판) 진행 순서와 동일 · 순서 변경은 위 경기 카드를 드래그</span></h3>`;
+    const list = document.createElement('div'); list.className = 'order-list';
+    playOrderSeq().forEach((m, i) => {
+      const row = document.createElement('div');
+      row.className = 'order-row' + (isDone(m) ? ' done' : '');
+      row.innerHTML = `<span class="on">#${i + 1}</span>
+        <span class="og">${GLAB(m.g)}조</span>
+        <span class="or">GAME ${m.gi + 1}</span>
+        <span class="ot">${escapeHtml(teamName(m.aId))} <b>vs</b> ${escapeHtml(teamName(m.bId))}</span>
+        ${isDone(m) ? `<span class="os">${m.sa}:${m.sb} ✓</span>` : ''}`;
+      list.appendChild(row);
+    });
+    sec.appendChild(list);
+    wrap.appendChild(sec);
+  }
+
   const allDone = S.groupGames.length > 0 && S.groupGames.every(isDone);
   document.getElementById('toStep4').disabled = !allDone;
+}
+
+// 전체 경기 순서 (조 교차) — Admin byPlayOrder(예선 한 페이즈: match_order ASC → round ASC)와 동일 시퀀스.
+// 빌더 저장 시 match_order = 조별 배열 인덱스+1 이므로, i번째 경기들을 조 순서대로 돌면 A1·B1·A2·B2…
+function playOrderSeq(){
+  const byGroup = {};
+  S.groupGames.forEach(m => { (byGroup[m.g] = byGroup[m.g] || []).push(m); });
+  const groups = Object.keys(byGroup).map(Number).sort((a, b) => a - b);
+  const maxLen = Math.max(0, ...groups.map(g => byGroup[g].length));
+  const seq = [];
+  for(let i = 0; i < maxLen; i++)
+    for(const g of groups)
+      if(byGroup[g][i]) seq.push({ ...byGroup[g][i], gi: i });
+  return seq;
 }
 function setGroupScore(gameId, side, value){
   const m = S.groupGames.find(x => x.id === gameId);

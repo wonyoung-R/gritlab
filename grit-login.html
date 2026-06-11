@@ -11,7 +11,7 @@
   /* ===========================================================
      GRIT LAB — 3X3 Admin Login
      디자인 시스템: GRIT LAB 3X3. 인증: Supabase signInWithPassword
-     성공 시 tournament.html(대회 관리 페이지)로 이동.
+     성공 시 /threevthree/admin(모드 선택 랜딩 — 관리자모드/대회모드)으로 이동.
      세션은 같은 도메인의 다른 페이지/React 앱과 공유됨(localStorage).
      =========================================================== */
   :root {
@@ -193,9 +193,9 @@ const SUPABASE_URL = 'https://mwitveudlafcrksokjtz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13aXR2ZXVkbGFmY3Jrc29ranR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzM5MDksImV4cCI6MjA4ODU0OTkwOX0.QYmGs8HWZuau3QUQOwL9VTj3IaaJL7Fw0c3Z6V1ocEw';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const DEST = 'tournament.html';   // 로그인 성공 시 이동할 대회 관리 페이지
+const DEST = '/threevthree/admin';   // 로그인 성공 시 모드 선택 랜딩 (관리자모드/대회모드) — tournament.html 직행 금지
 
-/* 이미 로그인돼 있으면 바로 관리 페이지로 (AdminLogin.jsx와 동일 패턴) */
+/* 이미 로그인돼 있으면 바로 모드 선택 랜딩으로 (AdminLogin.jsx와 동일 패턴) */
 async function checkExistingSession(){
   const { data: { session } } = await sb.auth.getSession();
   if(session){
@@ -225,7 +225,7 @@ async function handleLogin(e){
     btn.disabled = false; btn.textContent = '로그인 →';
     return false;
   }
-  // 성공 → 대회 관리 페이지로
+  // 성공 → 모드 선택 랜딩으로
   window.location.replace(DEST);
   return false;
 }
