@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -151,6 +151,12 @@ export default function ThreeVThreeAdmin() {
     const [saving, setSaving] = useState(null);
     const [deleting, setDeleting] = useState(null);
 
+    // ── PR-F: 수동 편성 (순서 변경·라운드 이동·ENDED 잠금·몰수패) ──
+    const [unlockedIds, setUnlockedIds] = useState(new Set()); // ENDED 잠금 해제된 경기 id
+    const [forfeitTarget, setForfeitTarget] = useState(null);  // 몰수패 팀 선택 패널이 열린 경기 id
+    const [dragId, setDragId] = useState(null);                // 드래그 중인 경기 id
+    const [dragOverId, setDragOverId] = useState(null);        // 드롭 대상 후보 경기 id
+
     // ── 라이브 스코어보드 상태 ──
     const [liveMatch, setLiveMatch] = useState(null); // 현재 기록중인 match
     const [gameTime, setGameTime] = useState(600);     // 10분
@@ -250,7 +256,8 @@ export default function ThreeVThreeAdmin() {
     }, [activeTournamentId]);
 
     useEffect(() => {
-        setMatches(allMatches.filter(m => m.round === activeRound));
+        // 순서 변경(match_order 갱신)이 즉시 화면에 반영되도록 정렬해서 파생
+        setMatches(allMatches.filter(m => m.round === activeRound).sort((a, b) => a.match_order - b.match_order));
     }, [activeRound, allMatches]);
 
     const fetchMatches = async () => {
@@ -427,7 +434,8 @@ export default function ThreeVThreeAdmin() {
     const handleAddMatch = async () => {
         if (!activeTournamentId) return;
         const roundMatches = allMatches.filter(m => m.round === activeRound);
-        const nextOrder = roundMatches.length + 1;
+        // count+1은 삭제로 생긴 번호 갭에서 기존 경기와 충돌 — max+1로 항상 유일하게
+        const nextOrder = roundMatches.length ? Math.max(...roundMatches.map(m => m.match_order)) + 1 : 1;
         const { data, error } = await supabase
             .from('game_3v3_brackets')
             .insert([{
@@ -454,17 +462,115 @@ export default function ThreeVThreeAdmin() {
         setSaving(null);
     };
 
-    const handleDeleteMatch = async (id) => {
+    const handleDeleteMatch = async (match) => {
         if (!confirm('이 경기를 삭제하시겠습니까?')) return;
-        setDeleting(id);
-        const { error } = await supabase.from('game_3v3_brackets').delete().eq('id', id);
+        // 이미 치러진 경기(ENDED)는 결과 보호 — 2단계 확인
+        if (match.status === 'ENDED' && !confirm(`⚠️ 종료된 경기입니다.\n${match.team_a_name} ${match.team_a_score} : ${match.team_b_score} ${match.team_b_name}\n\n삭제하면 경기 기록이 영구히 사라지고 순위에서 제외됩니다. 정말 삭제할까요?`)) return;
+        setDeleting(match.id);
+        const { error } = await supabase.from('game_3v3_brackets').delete().eq('id', match.id);
         if (error) { alert('삭제 실패: ' + error.message); }
-        else { setAllMatches(prev => prev.filter(m => m.id !== id)); }
+        else { setAllMatches(prev => prev.filter(m => m.id !== match.id)); }
         setDeleting(null);
     };
 
     const updateMatch = (id, field, value) => {
         setAllMatches(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+    };
+
+    // ── PR-F: ENDED 잠금 — 종료 경기는 잠금 해제(2단계 확인) 전까지 수정 불가 ──
+    const isLocked = (match) => match.status === 'ENDED' && !unlockedIds.has(match.id);
+
+    const toggleUnlock = (match) => {
+        if (unlockedIds.has(match.id)) {
+            setUnlockedIds(prev => { const s = new Set(prev); s.delete(match.id); return s; });
+            return;
+        }
+        if (!confirm('⚠️ 종료된 경기의 잠금을 해제할까요?\n결과를 수정하면 순위(standings)에 즉시 반영됩니다.')) return;
+        setUnlockedIds(prev => new Set(prev).add(match.id));
+    };
+
+    // ── PR-F: 순서 변경 — ENDED 경기는 제자리 고정, PENDING끼리만 재배치 ──
+    // changedOnly: match_order가 실제로 바뀐 row만 DB 갱신 (ENDED row 무변경 보장)
+    const persistOrder = async (roundId, orderedList) => {
+        const changes = orderedList
+            .map((m, i) => ({ id: m.id, from: m.match_order, to: i + 1 }))
+            .filter(c => c.from !== c.to);
+        if (!changes.length) return;
+        setAllMatches(prev => prev.map(m => {
+            const c = changes.find(x => x.id === m.id);
+            return c ? { ...m, match_order: c.to } : m;
+        }));
+        const results = await Promise.all(changes.map(c =>
+            supabase.from('game_3v3_brackets')
+                .update({ match_order: c.to, updated_at: new Date().toISOString() })
+                .eq('id', c.id)
+        ));
+        if (results.some(r => r.error)) {
+            alert('순서 저장 실패 — 목록을 다시 불러옵니다.');
+            fetchMatches();
+        }
+    };
+
+    // 라운드 내 정렬본에서 dragged를 target 위치로 이동시키되 ENDED는 슬롯 고정
+    const reorderRound = (roundId, draggedId, targetId) => {
+        const list = allMatches.filter(m => m.round === roundId).sort((a, b) => a.match_order - b.match_order);
+        const dragged = list.find(m => m.id === draggedId);
+        const target = list.find(m => m.id === targetId);
+        if (!dragged || !target || dragged.status === 'ENDED' || target.status === 'ENDED') return;
+        const pend = list.filter(m => m.status !== 'ENDED');
+        const from = pend.findIndex(m => m.id === draggedId);
+        const to = pend.findIndex(m => m.id === targetId);
+        if (from === -1 || to === -1 || from === to) return;
+        pend.splice(to, 0, pend.splice(from, 1)[0]);
+        // ENDED는 원래 슬롯에 그대로, 나머지 슬롯을 새 PENDING 순서로 채움
+        let pi = 0;
+        const rebuilt = list.map(m => m.status === 'ENDED' ? m : pend[pi++]);
+        persistOrder(roundId, rebuilt);
+    };
+
+    // ↑/↓ 버튼 — 인접 PENDING 경기와 교환 (ENDED는 건너뜀)
+    const nudgeMatch = (match, dir) => {
+        if (match.status === 'ENDED') return;
+        const pend = allMatches
+            .filter(m => m.round === match.round && m.status !== 'ENDED')
+            .sort((a, b) => a.match_order - b.match_order);
+        const idx = pend.findIndex(m => m.id === match.id);
+        const neighbor = pend[idx + dir];
+        if (!neighbor) return;
+        reorderRound(match.round, match.id, neighbor.id);
+    };
+
+    // ── PR-F: 라운드(조) 이동 — 대상 라운드 맨 뒤로 ──
+    const handleMoveRound = async (match, newRound) => {
+        if (newRound === match.round) return;
+        if (isLocked(match)) return;
+        const targetLabel = ROUNDS.find(r => r.id === newRound)?.label || newRound;
+        if (!confirm(`이 경기를 "${targetLabel}"(으)로 이동할까요?`)) return;
+        const tgt = allMatches.filter(m => m.round === newRound);
+        const newOrder = tgt.length ? Math.max(...tgt.map(m => m.match_order)) + 1 : 1;
+        const { error } = await supabase.from('game_3v3_brackets')
+            .update({ round: newRound, match_order: newOrder, updated_at: new Date().toISOString() })
+            .eq('id', match.id);
+        if (error) { alert('이동 실패: ' + error.message); return; }
+        setAllMatches(prev => prev.map(m => m.id === match.id ? { ...m, round: newRound, match_order: newOrder } : m));
+    };
+
+    // ── PR-F: 몰수패 — 불참/기권 팀 0 : 20 상대팀 승, ENDED 처리 (FIBA 몰수 규정 준용) ──
+    const applyForfeit = async (match, loser) => {
+        const loserName = loser === 'A' ? match.team_a_name : match.team_b_name;
+        const winnerName = loser === 'A' ? match.team_b_name : match.team_a_name;
+        if (!confirm(`"${loserName}" 몰수패 처리할까요?\n\n${winnerName} 20 : 0 ${loserName} 승으로 기록되고 경기가 종료(ENDED)됩니다.`)) return;
+        const fields = {
+            team_a_score: loser === 'A' ? 0 : 20,
+            team_b_score: loser === 'B' ? 0 : 20,
+            winner: loser === 'A' ? 'B_WIN' : 'A_WIN',
+            status: 'ENDED',
+            updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', match.id);
+        if (error) { alert('몰수패 처리 실패: ' + error.message); return; }
+        setAllMatches(prev => prev.map(m => m.id === match.id ? { ...m, ...fields } : m));
+        setForfeitTarget(null);
     };
 
     // ── 라이브 기록 시작 ──
@@ -1071,46 +1177,117 @@ export default function ThreeVThreeAdmin() {
                                     이 라운드에 등록된 경기가 없습니다.
                                 </div>
                             ) : (
-                                matches.map((match) => (
-                                    <div key={match.id} className="bg-[#e9e1ca] border-2 border-[#33456a] p-4 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-[#d8302c] uppercase tracking-[0.14em]">GAME {match.match_order}</span>
-                                            <div className="flex items-center gap-2">
+                                matches.map((match) => {
+                                    const locked = isLocked(match);
+                                    const draggable = match.status !== 'ENDED';
+                                    return (
+                                    <div key={match.id}
+                                        onDragOver={(e) => { if (dragId && dragId !== match.id && draggable) { e.preventDefault(); setDragOverId(match.id); } }}
+                                        onDragLeave={() => setDragOverId(prev => (prev === match.id ? null : prev))}
+                                        onDrop={(e) => { e.preventDefault(); if (dragId && dragId !== match.id) reorderRound(match.round, dragId, match.id); setDragId(null); setDragOverId(null); }}
+                                        className={`bg-[#e9e1ca] border-2 p-4 space-y-3 transition ${dragOverId === match.id ? 'border-[#ee7c1b]' : 'border-[#33456a]'} ${dragId === match.id ? 'opacity-50' : ''}`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {draggable ? (
+                                                    <span draggable
+                                                        onDragStart={() => setDragId(match.id)}
+                                                        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                                                        className="cursor-grab text-[#6d7fa3] hover:text-[#16243f]" title="드래그로 순서 변경">
+                                                        <GripVertical size={16} />
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[#6d7fa3]" title="종료된 경기 — 순서 고정"><Lock size={14} /></span>
+                                                )}
+                                                <span className="text-xs text-[#d8302c] uppercase tracking-[0.14em] whitespace-nowrap">GAME {match.match_order}</span>
+                                                {match.winner && (
+                                                    <span className="text-xs text-[#16243f] flex items-center gap-1 min-w-0">
+                                                        <Trophy size={12} className="text-[#ee7c1b] shrink-0" />
+                                                        <span className="truncate">{match.winner === 'A_WIN' ? match.team_a_name : match.team_b_name}</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
                                                 <span className="text-xs px-2 py-1 tracking-wider" style={{ color: match.status === 'LIVE' ? '#0c1a0e' : '#fff', background: statusColor(match.status) }}>
                                                     {match.status}
                                                 </span>
-                                                {match.winner && (
-                                                    <span className="text-xs text-[#16243f] flex items-center gap-1">
-                                                        <Trophy size={12} className="text-[#ee7c1b]" />
-                                                        {match.winner === 'A_WIN' ? match.team_a_name : match.team_b_name}
-                                                    </span>
+                                                {/* 라운드(조) 이동 */}
+                                                <select value={match.round} disabled={locked}
+                                                    onChange={e => handleMoveRound(match, e.target.value)}
+                                                    title="다른 라운드로 이동"
+                                                    className="text-xs bg-[#e9e1ca] text-[#16243f] border-2 border-[#33456a] px-1 py-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                                    {ROUNDS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                                                </select>
+                                                {/* 순서 ↑/↓ (인접 PENDING과 교환) */}
+                                                <button onClick={() => nudgeMatch(match, -1)} disabled={!draggable} title="위로"
+                                                    className="text-[#16243f] border-2 border-[#33456a] p-1 hover:border-[#ee7c1b] transition disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    <ChevronUp size={14} />
+                                                </button>
+                                                <button onClick={() => nudgeMatch(match, 1)} disabled={!draggable} title="아래로"
+                                                    className="text-[#16243f] border-2 border-[#33456a] p-1 hover:border-[#ee7c1b] transition disabled:opacity-30 disabled:cursor-not-allowed">
+                                                    <ChevronDown size={14} />
+                                                </button>
+                                                {/* ENDED 잠금 토글 (2단계 확인) */}
+                                                {match.status === 'ENDED' && (
+                                                    <button onClick={() => toggleUnlock(match)}
+                                                        title={locked ? '잠금 해제 (종료 경기 수정)' : '다시 잠금'}
+                                                        className={`p-1 border-2 transition ${locked ? 'text-[#16243f] border-[#33456a]' : 'text-white bg-[#d8302c] border-[#d8302c]'}`}>
+                                                        {locked ? <Lock size={14} /> : <Unlock size={14} />}
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* 팀/스코어 입력 */}
+                                        {/* 팀/스코어 입력 — ENDED 잠금 시 비활성 */}
                                         <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
                                             <div className="space-y-2">
-                                                <input className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                                <input disabled={locked} className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-60"
                                                     placeholder="팀 A" value={match.team_a_name} onChange={e => updateMatch(match.id, 'team_a_name', e.target.value)} />
-                                                <input type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                                <input disabled={locked} type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-60"
                                                     value={match.team_a_score} onChange={e => updateMatch(match.id, 'team_a_score', parseInt(e.target.value) || 0)} />
                                             </div>
                                             <div className="text-[#16243f] text-lg">VS</div>
                                             <div className="space-y-2">
-                                                <input className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                                <input disabled={locked} className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-2 text-[#e9e1ca] text-center placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-60"
                                                     placeholder="팀 B" value={match.team_b_name} onChange={e => updateMatch(match.id, 'team_b_name', e.target.value)} />
-                                                <input type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                                <input disabled={locked} type="number" className="w-full bg-[#16243f] border-2 border-[#33456a] px-3 py-3 text-[#e9e1ca] text-center text-2xl placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-60"
                                                     value={match.team_b_score} onChange={e => updateMatch(match.id, 'team_b_score', parseInt(e.target.value) || 0)} />
                                             </div>
                                         </div>
 
+                                        {/* 몰수패 팀 선택 패널 */}
+                                        {forfeitTarget === match.id && (
+                                            <div className="flex flex-wrap items-center gap-2 bg-[#d8302c]/10 border-2 border-[#d8302c]/40 p-2">
+                                                <span className="text-xs text-[#16243f] tracking-wider">몰수패(불참) 팀 선택 — 상대팀 20:0 승:</span>
+                                                <button onClick={() => applyForfeit(match, 'A')}
+                                                    className="text-xs text-white bg-[#d8302c] hover:brightness-110 px-3 py-1.5 tracking-wider transition">
+                                                    {match.team_a_name || '팀 A'} 몰수패
+                                                </button>
+                                                <button onClick={() => applyForfeit(match, 'B')}
+                                                    className="text-xs text-white bg-[#d8302c] hover:brightness-110 px-3 py-1.5 tracking-wider transition">
+                                                    {match.team_b_name || '팀 B'} 몰수패
+                                                </button>
+                                                <button onClick={() => setForfeitTarget(null)}
+                                                    className="text-xs text-[#16243f] border-2 border-[#33456a] px-3 py-1 tracking-wider hover:border-[#ee7c1b] transition">
+                                                    취소
+                                                </button>
+                                            </div>
+                                        )}
+
                                         {/* 액션 버튼 */}
                                         <div className="flex gap-2 justify-between">
-                                            <button onClick={() => handleDeleteMatch(match.id)} disabled={deleting === match.id}
-                                                className="text-[#d8302c] hover:brightness-110 text-sm flex items-center gap-1 px-4 py-2 bg-[#d8302c]/12 border-2 border-[#d8302c]/40 transition disabled:opacity-50 tracking-wider">
-                                                <Trash2 size={14} /> {deleting === match.id ? '삭제중...' : '삭제'}
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleDeleteMatch(match)} disabled={deleting === match.id}
+                                                    className="text-[#d8302c] hover:brightness-110 text-sm flex items-center gap-1 px-4 py-2 bg-[#d8302c]/12 border-2 border-[#d8302c]/40 transition disabled:opacity-50 tracking-wider">
+                                                    <Trash2 size={14} /> {deleting === match.id ? '삭제중...' : '삭제'}
+                                                </button>
+                                                {/* 몰수패 — 두 팀이 정해진 미종료 경기만 */}
+                                                {match.team_a_name && match.team_b_name && match.status !== 'ENDED' && forfeitTarget !== match.id && (
+                                                    <button onClick={() => setForfeitTarget(match.id)}
+                                                        className="text-[#16243f] text-sm flex items-center gap-1 px-4 py-2 border-2 border-[#33456a] hover:border-[#d8302c] transition tracking-wider">
+                                                        <Flag size={14} /> 몰수
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className="flex gap-2">
                                                 {/* 라이브 기록 버튼 */}
                                                 {match.team_a_name && match.team_b_name && match.status !== 'ENDED' && (
@@ -1119,14 +1296,15 @@ export default function ThreeVThreeAdmin() {
                                                         <Play size={14} /> 기록 시작
                                                     </button>
                                                 )}
-                                                <button onClick={() => handleSaveMatch(match)} disabled={saving === match.id}
+                                                <button onClick={() => handleSaveMatch(match)} disabled={saving === match.id || locked}
                                                     className="bg-[#ee7c1b] hover:brightness-110 disabled:opacity-50 text-white text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
                                                     <Save size={14} /> {saving === match.id ? '저장중...' : '저장'}
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </section>
