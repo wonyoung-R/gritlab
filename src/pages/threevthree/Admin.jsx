@@ -812,13 +812,14 @@ export default function ThreeVThreeAdmin() {
     };
 
     // ── 대회모드 진행 시작 — 인터미션(준비 화면)부터 (사장 결정: 도식대로 인터미션 → 점수판 → …) ──
-    // 첫 진입은 경기 간 휴식이 아니므로 카운트다운 없이 '다음 경기 시작' 버튼 즉시 활성
+    // 첫 인터미션도 일반 인터미션과 동일하게 1:30 카운트다운 (사장 0612 교정 — 00:00 시작 금지)
     const enterTournamentCycle = (ms) => {
         setAdminMode('tournament');
         const ordered = [...ms].sort(byPlayOrder);
-        setIntermissionNext(ordered.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name) || null);
-        setIntermissionSec(0);
-        setIntermissionRunning(false);
+        const nxt = ordered.find(m => m.status !== 'ENDED' && m.team_a_name && m.team_b_name) || null;
+        setIntermissionNext(nxt);
+        setIntermissionSec(nxt ? 90 : 0);      // 진행할 경기가 없으면(모든 경기 종료) 카운트다운 불필요
+        setIntermissionRunning(!!nxt);
         setShowIntermission(true);
         document.documentElement.requestFullscreen?.().catch?.(() => {}); // 전체화면(TV 출력) — 미지원/거부 시 무시
     };
