@@ -1450,10 +1450,14 @@
     color: var(--sb-muted); font-weight: 400; font-size: 12px; letter-spacing: 0.22em;
 }
 
-/* 파울 도트: 18px 원, 켜짐 초록 / 페널티 빨강 (글로우 제거) */
+/* 파울 도트: 18px 원, 글로우 제거 — 단계별 색: 1-3 초록 / 4-6 주황(경고) / 7-9 빨강(페널티) / 10 보라
+   버그픽스: 이 오버라이드 블록에 dotWarning·dotSevere가 빠져 있어
+   dotWarning은 원본(1316, dotActive와 동일 초록+글로우)이 적용 → 경고 단계 색이 구분되지 않았음 */
 .foulIndicatorDot { width: 18px; height: 18px; background: var(--sb-border); box-shadow: none; }
 .dotActive { background: var(--sb-green); box-shadow: none; }
+.dotWarning { background: #ee7c1b; box-shadow: none; }
 .dotPenalty { background: var(--sb-red); box-shadow: none; }
+.dotSevere { background: #b000ff; box-shadow: none; }
 
 /* 점수 +/− 버튼: 네이비 면 + 크림 글자 */
 .scoreBtnMicro { background: var(--sb-surface); color: var(--glab-cream); border: 2px solid var(--sb-border); }
