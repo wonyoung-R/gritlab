@@ -246,7 +246,7 @@ export default function ThreeVThreeAdmin() {
     const [intermissionSec, setIntermissionSec] = useState(90);
     const [intermissionRunning, setIntermissionRunning] = useState(true);
     const [intermissionNext, setIntermissionNext] = useState(null);
-    const [groupRotation, setGroupRotation] = useState(0);  // 인터미션 조별 순환 인덱스 (10초마다 +1)
+    const [rotTick, setRotTick] = useState(0);  // 인터미션 조별 순환 1초 틱 — 조 인덱스(÷10)와 잔여초(10−%10)를 함께 파생
     // ── 대진 자동 완성 (예선 종료 → 4강 시딩) ──
     const [autoSemiInfo, setAutoSemiInfo] = useState(null); // {qualified, needsDraw} — 인터미션 브라켓 배지용
     const autoFillBusyRef = useRef(false);
@@ -788,13 +788,13 @@ export default function ThreeVThreeAdmin() {
         setIntermissionRunning(false);
     }, [showIntermission, intermissionSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // 인터미션 조별 순환 — 10초마다 다음 조 (90초 ÷ 10초 = 9슬롯).
+    // 인터미션 조별 순환 — 10초마다 다음 조 (90초 ÷ 10초 = 9슬롯). 1초 틱으로 잔여초 카운트도 함께 표시.
     // 일시정지 중에는 화면 고정, 카운트다운 종료 후에는 운영자가 시작 누를 때까지 계속 순환.
     useEffect(() => {
-        if (!showIntermission) { setGroupRotation(0); return; }
+        if (!showIntermission) { setRotTick(0); return; }
         const explicitPause = !intermissionRunning && intermissionSec > 0;
         if (explicitPause) return;
-        const t = setInterval(() => setGroupRotation(r => r + 1), 10000);
+        const t = setInterval(() => setRotTick(k => k + 1), 1000);
         return () => clearInterval(t);
     }, [showIntermission, intermissionRunning, intermissionSec > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1082,7 +1082,8 @@ export default function ThreeVThreeAdmin() {
                     </div>
                 ) : groupStandings.length > 0 ? (
                     (() => {
-                        const gi = groupRotation % groupStandings.length;
+                        const gi = Math.floor(rotTick / 10) % groupStandings.length;
+                        const rotRemain = 10 - (rotTick % 10); // 다음 조 전환까지 남은 초
                         const g = groupStandings[gi];
                         return (
                             <div key={g.round} className={styles.intermissionGroupFade}
@@ -1091,6 +1092,7 @@ export default function ThreeVThreeAdmin() {
                                     <span style={{ fontFamily: anton, fontSize: '7vh', color: C.orange, letterSpacing: '.06em' }}>{g.label}</span>
                                     {groupStandings.length > 1 && (
                                         <span style={{ fontFamily: pre, fontWeight: 700, fontSize: '2.4vh', color: C.muted, letterSpacing: '.2em' }}>
+                                            <span style={{ fontSize: '1.8vh', fontWeight: 600, opacity: .7, marginRight: 14, fontVariantNumeric: 'tabular-nums' }}>{rotRemain}s</span>
                                             GROUP {gi + 1}/{groupStandings.length}
                                         </span>
                                     )}
@@ -1138,6 +1140,13 @@ export default function ThreeVThreeAdmin() {
                             <button onClick={() => setIntermissionRunning(r => !r)}
                                 style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.line}`, background: 'transparent', color: C.cream, cursor: 'pointer' }}>
                                 {intermissionRunning ? '❚❚ 일시정지' : '► 재개'}
+                            </button>
+                        )}
+                        {waiting && (
+                            <button onClick={startNextNow}
+                                title="대기 시간을 건너뛰고 즉시 경기 시작"
+                                style={{ fontFamily: anton, fontSize: '2vh', letterSpacing: '.06em', padding: '1.4vh 2vw', border: `2px solid ${C.green}`, background: 'transparent', color: C.green, cursor: 'pointer' }}>
+                                ▶ 경기 바로 시작
                             </button>
                         )}
                         <button onClick={startNextNow} disabled={waiting}
@@ -1280,7 +1289,7 @@ export default function ThreeVThreeAdmin() {
                     {/* 중앙: 타이머 & 샷클락 */}
                     <div className={styles.centerBlock}>
                         <div className={styles.timerGroup}>
-                            <p className={styles.timerLabel}>GAME CLOCK (TAP: Play/Pause, HOLD: Edit)</p>
+                            <p className={styles.timerLabel}>GAME CLOCK</p>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                 {/* PR-B: 게임클락 마우스 ±버튼 제거 — 시간조정은 키보드 ↑↓ 또는 길게눌러 편집 모달 */}
                                 <div
