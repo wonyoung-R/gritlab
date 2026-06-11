@@ -141,6 +141,16 @@ export default function ThreeVThreeAdmin() {
     const navigate = useNavigate();
     const { id: urlTournamentId } = useParams();
 
+    // 로그인 가드 — 세션 없으면 grit-login으로 (grit-login.html/tournament.html과 localStorage 세션 공유)
+    // 쓰기는 RLS(auth write)가 이미 막지만, admin UI 자체를 비로그인에게 노출하지 않는다.
+    const [authed, setAuthed] = useState(false);
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session) { window.location.replace('/grit-login.html'); return; }
+            setAuthed(true);
+        });
+    }, []);
+
     const [tournaments, setTournaments] = useState([]);
     const [activeTournamentId, setActiveTournamentId] = useState(null);
     const [newTitle, setNewTitle] = useState('');
@@ -692,7 +702,7 @@ export default function ThreeVThreeAdmin() {
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
     const shotClockLow = shotClock > 0 && shotClock < 5;
 
-    if (loading) {
+    if (loading || !authed) {
         return <div className="min-h-screen bg-[#16243f] flex items-center justify-center text-[#8ea0c2]" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>Loading...</div>;
     }
 
