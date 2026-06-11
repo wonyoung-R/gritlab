@@ -140,6 +140,8 @@
   .btn-sm { font-size: 13px; padding: 8px 13px; }
   .btn.ghost { background: transparent; color: var(--cream); border: 2px solid var(--navy-line); }
   .btn.ghost:hover { border-color: var(--orange); color: var(--orange); filter: none; }
+  .btn.ghost-red { background: transparent; color: var(--red); border: 2px solid var(--red); }
+  .btn.ghost-red:hover { background: var(--red); color: #fff; filter: none; }
 
   .row-actions { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
 
@@ -944,6 +946,55 @@ async function toggleTournamentStatus(id){
 }
 
 /* ===========================================================
+   대회 삭제 — 영구 삭제 (LIVE+기록 차단 → 2단계 확인 → brackets→tournament 순)
+   =========================================================== */
+async function deleteTournament(id){
+  const t = TOURNAMENTS.find(x => x.id === id);
+  if(!t) return;
+
+  const { count, error: cntErr } = await sb
+    .from('game_3v3_brackets')
+    .select('*', { count: 'exact', head: true })
+    .eq('tournament_id', id);
+  if(cntErr){ alert('경기 데이터 확인 실패: ' + cntErr.message); return; }
+  const games = count || 0;
+
+  // 진행 중(LIVE) 대회에 기록이 있으면 차단 — 운영 중 오삭제 방지
+  if(t.status === 'ACTIVE' && games > 0){
+    alert('진행 중(LIVE) 대회는 삭제할 수 없습니다.\n먼저 [대회 종료] 후 다시 시도하세요.');
+    return;
+  }
+
+  // 1단계: 영구 삭제 경고
+  if(!confirm(`"${t.title}"\n\n경기 기록 ${games}개를 포함해 영구 삭제됩니다.\n복구할 수 없습니다. 계속할까요?`)) return;
+
+  // 2단계: 대회 이름 직접 입력으로 확정
+  const typed = prompt(`삭제를 확정하려면 대회 이름을 정확히 입력하세요:\n\n${t.title}`);
+  if(typed === null) return;
+  if(typed.trim() !== t.title){ alert('대회 이름이 일치하지 않아 삭제를 취소했습니다.'); return; }
+
+  // 경기 기록 → 대회 순서 삭제. 모두 tournament_id/id 스코프 (.eq 누락 금지)
+  const { error: bErr } = await sb.from('game_3v3_brackets').delete().eq('tournament_id', id);
+  if(bErr){ alert('경기 기록 삭제 실패: ' + bErr.message); return; }
+  const { error: tErr } = await sb.from('tournaments').delete().eq('id', id).eq('type', '3V3');
+  if(tErr){ alert('대회 삭제 실패: ' + tErr.message + '\n(경기 기록은 이미 삭제되었습니다 — 다시 시도하세요)'); return; }
+
+  // 후처리: 목록·결과 화면·빌더 바인딩 정리
+  TOURNAMENTS = TOURNAMENTS.filter(x => x.id !== id);
+  if(selectedTournamentId === id){
+    selectedTournamentId = null;
+    document.getElementById('resultSection').classList.add('hidden');
+  }
+  if(S.tournamentId === id){
+    S.tournamentId = null;
+    S.tournamentName = '';
+    document.getElementById('bindName').textContent = '— 대회를 먼저 생성/선택하세요 —';
+  }
+  renderTourneyList(TOURNAMENTS);
+  alert(`"${t.title}" 대회가 삭제되었습니다.`);
+}
+
+/* ===========================================================
    대회 결과 조회 (지난 대회 포함 — Admin.jsx 데이터 호환)
    =========================================================== */
 async function selectTournament(id){
@@ -963,6 +1014,7 @@ async function selectTournament(id){
       <button class="btn ${t.status === 'ACTIVE' ? 'btn-red' : 'btn-green'} btn-sm" onclick="toggleTournamentStatus('${t.id}')">
         ${t.status === 'ACTIVE' ? '대회 종료' : '대회 재개'}
       </button>
+      <button class="btn ghost-red btn-sm" onclick="deleteTournament('${t.id}')" title="대회와 모든 경기 기록을 영구 삭제합니다 (복구 불가)">🗑 대회 삭제</button>
     </div>`;
 
   const body = document.getElementById('resultBody');
