@@ -841,7 +841,9 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     <div className={styles.periodBadge} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: 84, fontWeight: 900, color: '#111', fontFamily: 'Anton, sans-serif', letterSpacing: '0.08em', lineHeight: 1 }}>GRIT LAB 🏀</span>
+                        {/* 텍스트 84px 고정 렌더링은 화면 폭에 따라 잘림 — 로고 이미지(고정 비율 축소)로 교체 */}
+                        <img src="/gritlab-logo.png" alt="GRIT LAB"
+                            style={{ height: 'clamp(44px, 8vh, 96px)', width: 'auto', maxWidth: '46vw', objectFit: 'contain', display: 'block' }} />
                     </div>
 
                     <div className={styles.headerRight}>
