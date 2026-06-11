@@ -6,7 +6,9 @@
 <title>GRIT LAB · 3X3 Tournament</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<!-- PR-C: 한글 = Pretendard (Black Han Sans 대체 — 한글이 뭉개져 보이는 문제) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
   /* ===========================================================
      GRIT LAB — 3X3 Tournament (대회 관리 + 빌더 + 지난 대회 결과)
@@ -26,8 +28,9 @@
     --red:       #d8302c;
     --red-d:     #b9221f;
 
-    --display: 'Anton', 'Black Han Sans', sans-serif;
-    --ui:      'Archivo', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    /* PR-C 폰트 분기: Anton에 한글 글리프가 없어 라틴/숫자 → Anton, 한글 → Pretendard 자동 폴백 */
+    --display: 'Anton', 'Pretendard', sans-serif;
+    --ui:      'Archivo', 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
 
     --shadow: 0 8px 28px rgba(0,0,0,.35);
   }
@@ -711,7 +714,7 @@
         <div class="controls">
           <div class="field-wrap"><label>참가 팀 수</label><input class="field" id="numTeams" type="number" min="4" max="32" value="8"></div>
           <div class="field-wrap"><label>조 수</label><input class="field" id="numGroups" type="number" min="1" max="8" value="2"></div>
-          <div class="field-wrap"><label>팀당 경기 수 (0=풀리그)</label><input class="field" id="gamesPerTeam" type="number" min="0" max="20" value="0"></div>
+          <div class="field-wrap"><label>팀당 경기 수 (0=풀리그 · 최소 2)</label><input class="field" id="gamesPerTeam" type="number" min="0" max="20" value="0"></div>
         </div>
         <div class="preview" id="formatPreview"></div>
         <div class="row-actions">
@@ -776,11 +779,56 @@
   </div>
 </div>
 
-<!-- 키보드 조작 안내 이미지 모달 (사진 클릭 시 닫힘) -->
+<!-- 키보드 조작 안내 모달 (클릭 시 닫힘) — 키맵 표. 손 일러스트 제거(구 keyboard-guide.png 대체) -->
+<style>
+  .kbm-card{background:#16243f;border:2px solid rgba(233,225,202,0.4);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6);padding:26px 30px;max-width:min(940px,96vw);max-height:92vh;overflow:auto;color:#e9e1ca;cursor:default}
+  .kbm-title{text-align:center;font-size:20px;font-weight:800;letter-spacing:.12em;color:#ee7c1b;margin-bottom:4px}
+  .kbm-sub{text-align:center;font-size:12px;color:#8ea0c2;margin-bottom:18px}
+  .kbm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .kbm-col h4{margin:0 0 10px;text-align:center;font-size:13px;letter-spacing:.14em;color:#8ea0c2;font-weight:800}
+  .kbm-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1.5px solid #33456a;border-radius:10px;margin-bottom:6px;background:rgba(233,225,202,0.04)}
+  .kbm-key{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:34px;padding:0 9px;border:2px solid #8ea0c2;border-bottom-width:3px;border-radius:8px;font-weight:800;font-size:15px;color:#e9e1ca;background:rgba(233,225,202,0.08);flex-shrink:0}
+  .kbm-act{font-size:14px;font-weight:600}
+  .kbm-common{margin-top:14px;border-top:1.5px solid #33456a;padding-top:12px}
+  .kbm-common .kbm-rows{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+  @media (max-width:680px){.kbm-grid,.kbm-common .kbm-rows{grid-template-columns:1fr}}
+</style>
 <div id="kbdImgModal" onclick="closeKbdImg()"
      style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(7,9,14,0.9);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;cursor:zoom-out">
-  <img src="/keyboard-guide.png" alt="키보드 전광판 조작 안내"
-       style="max-width:96vw;max-height:92vh;border:2px solid rgba(233,225,202,0.4);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6)">
+  <div class="kbm-card" onclick="event.stopPropagation()">
+    <div class="kbm-title">키보드 전광판 조작 안내</div>
+    <div class="kbm-sub">한/영 입력 상태 무관 (물리 키 기준) · 빈 곳을 클릭하거나 ESC로 닫기</div>
+    <div class="kbm-grid">
+      <div class="kbm-col">
+        <h4>왼손 · A팀</h4>
+        <div class="kbm-row"><span class="kbm-key">A</span><span class="kbm-act">A팀 +1점</span></div>
+        <div class="kbm-row"><span class="kbm-key">S</span><span class="kbm-act">A팀 +2점</span></div>
+        <div class="kbm-row"><span class="kbm-key">D</span><span class="kbm-act">A팀 −1점 (정정)</span></div>
+        <div class="kbm-row"><span class="kbm-key">G</span><span class="kbm-act">A팀 파울 +1</span></div>
+        <div class="kbm-row"><span class="kbm-key">V</span><span class="kbm-act">A팀 타임아웃</span></div>
+      </div>
+      <div class="kbm-col">
+        <h4>오른손 · B팀</h4>
+        <div class="kbm-row"><span class="kbm-key">;</span><span class="kbm-act">B팀 +1점</span></div>
+        <div class="kbm-row"><span class="kbm-key">L</span><span class="kbm-act">B팀 +2점</span></div>
+        <div class="kbm-row"><span class="kbm-key">K</span><span class="kbm-act">B팀 −1점 (정정)</span></div>
+        <div class="kbm-row"><span class="kbm-key">H</span><span class="kbm-act">B팀 파울 +1</span></div>
+        <div class="kbm-row"><span class="kbm-key">N</span><span class="kbm-act">B팀 타임아웃</span></div>
+      </div>
+    </div>
+    <div class="kbm-common">
+      <h4 style="margin:0 0 10px;text-align:center;font-size:13px;letter-spacing:.14em;color:#8ea0c2;font-weight:800">공통 · 양손</h4>
+      <div class="kbm-rows">
+        <div class="kbm-row"><span class="kbm-key">Space</span><span class="kbm-act">게임클락 시작 / 정지</span></div>
+        <div class="kbm-row"><span class="kbm-key">R</span><span class="kbm-act">게임클락 10:00 리셋</span></div>
+        <div class="kbm-row"><span class="kbm-key">↑</span><span class="kbm-key">↓</span><span class="kbm-act">게임클락 ±1초</span></div>
+        <div class="kbm-row"><span class="kbm-key">J</span><span class="kbm-act">샷클락 12초 리셋 + 재개</span></div>
+        <div class="kbm-row"><span class="kbm-key">F</span><span class="kbm-act">샷클락 정지 / 재개</span></div>
+        <div class="kbm-row"><span class="kbm-key">←</span><span class="kbm-key">→</span><span class="kbm-act">샷클락 ±1초</span></div>
+        <div class="kbm-row"><span class="kbm-key">B</span><span class="kbm-act">수동 부저</span></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js"></script>
@@ -1360,6 +1408,9 @@ async function saveToSupabase(markEnded){
 /* ===========================================================
    BUILDER — 핵심 로직 (예선 리그전 / 승패 자동계산 / 본선 4강)
    =========================================================== */
+// 예선 팀당 최소 경기 수 (확정: 2) — 모든 팀이 최소 2경기, 전 조 공통 X로 정확히 동일
+const MIN_GAMES = 2;
+
 function groupSizes(n, g){
   const base = Math.floor(n / g), rem = n % g;
   return Array.from({ length: g }, (_, i) => base + (i < rem ? 1 : 0));
@@ -1425,27 +1476,42 @@ function groupScheduleEx(ids, gamesPerTeam){
 }
 // 호환용: 경기쌍 배열만 반환 (기존 호출처)
 function groupSchedule(ids, gamesPerTeam){ return groupScheduleEx(ids, gamesPerTeam).pairs; }
-// 예선 팀당 경기 수 실현가능성 — 조별 (n, X). 불가 시 사유 + 대안(풀리그 0은 제안 금지).
+// 예선 팀당 경기 수 실현가능성 — 조별 (n, X). 불가 시 사유 + 대안.
+// 대안 후보는 MIN_GAMES(2) 이상만 제안 (1경기·풀리그 0은 제안 금지).
 function nearestFeasibleX(n, X){
   const cand = [];
-  for(let x = 1; x <= n - 1; x++) if(n % 2 === 0 || x % 2 === 0) cand.push(x);
+  for(let x = MIN_GAMES; x <= n - 1; x++) if(n % 2 === 0 || x % 2 === 0) cand.push(x);
   const lower = cand.filter(x => x < X).pop();
   const upper = cand.find(x => x > X);
   return [lower, upper].filter(x => x != null && x > 0);
 }
+// 정확히 X(≥2) 균등 실현 조건 (조 인원 n): X ≤ n−1 AND (n 짝수 OR X 짝수)
+function groupFeasible(n, X){ return X <= n - 1 && (n % 2 === 0 || X % 2 === 0); }
 function scheduleFeasibility(){
-  if(!S.gamesPerTeam || S.gamesPerTeam <= 0) return { ok: true, problems: [] };  // 풀리그
   const X = S.gamesPerTeam, problems = [];
   for(let g = 0; g < S.numGroups; g++){
     const n = S.teams.filter(t => S.assign[t.id] === g).length;
-    if(n < 2) continue;
-    if((X <= n - 1) && (n % 2 === 0 || X % 2 === 0)) continue;  // 정확히 X 균등 가능
+    if(n === 0) continue;  // 빈 조 — 미배정 풀이 남아있으면 toStep3가 별도 차단
+    if(n === 1){
+      problems.push(`${GLAB(g)}조(1팀): 경기를 만들 수 없습니다. 해당 조에 팀을 추가하거나 조 수를 줄이세요.`);
+      continue;
+    }
+    if(!X || X <= 0){
+      // 풀리그: 팀당 n−1경기 — 최소 2경기 미달 조(2팀 조) 검출
+      if(n - 1 < MIN_GAMES) problems.push(`${GLAB(g)}조(${n}팀): 풀리그로도 팀당 ${n - 1}경기뿐입니다(최소 ${MIN_GAMES}경기 미달). 해당 조에 팀을 추가하세요.`);
+      continue;
+    }
+    if(groupFeasible(n, X)) continue;  // 정확히 X 균등 가능
     const alts = nearestFeasibleX(n, X);
+    if(!alts.length){
+      // 실현 가능한 X가 아예 없는 조 (대표 케이스: 2팀 조 — 중복 매치업 없이 팀당 2경기 불가)
+      problems.push(`${GLAB(g)}조(${n}팀): 팀당 ${X}경기를 만들 수 없습니다. 해당 조에 팀을 추가하거나 목표 경기 수를 조정하세요.`);
+      continue;
+    }
     const reason = X > n - 1
       ? `${n}팀 조에서는 최대 ${n - 1}경기까지만 가능합니다`
       : `${n}팀(홀수) 조에서는 팀당 짝수 경기만 균등 배정이 가능합니다`;
-    const altTxt = alts.length ? ` (가능: 팀당 ${alts.join(' 또는 ')}경기)` : '';
-    problems.push(`${GLAB(g)}조(${n}팀): 팀당 ${X}경기는 불가합니다 — ${reason}${altTxt}.`);
+    problems.push(`${GLAB(g)}조(${n}팀): 팀당 ${X}경기는 불가합니다 — ${reason} (가능: 팀당 ${alts.join(' 또는 ')}경기).`);
   }
   return { ok: problems.length === 0, problems };
 }
@@ -1459,7 +1525,32 @@ function buildGroupGames(){
       games.push({ id: gid++, g, aId: a, bId: b, sa: '', sb: '' });
     });
   }
+  // 생성 후 자가검증 — 실패하면 부분 대진을 노출하지 않는다
+  const err = verifyGroupGames(games);
+  if(err){ S.groupGames = []; alert('대진 자가검증 실패 — 생성을 취소했습니다.\n' + err); return; }
   S.groupGames = games;
+}
+
+// 생성 후 자가검증: ① 중복 매치업 0 ② 전 팀 경기 수 = 목표(X 또는 풀리그 n−1)와 정확히 일치
+function verifyGroupGames(games){
+  const seen = new Set();
+  for(const m of games){
+    const key = m.g + ':' + Math.min(m.aId, m.bId) + '-' + Math.max(m.aId, m.bId);
+    if(seen.has(key)) return `중복 매치업이 생성되었습니다 (조 ${GLAB(m.g)}).`;
+    seen.add(key);
+  }
+  const cnt = {};
+  games.forEach(m => { cnt[m.aId] = (cnt[m.aId] || 0) + 1; cnt[m.bId] = (cnt[m.bId] || 0) + 1; });
+  for(let g = 0; g < S.numGroups; g++){
+    const ids = S.teams.filter(t => S.assign[t.id] === g).map(t => t.id);
+    if(!ids.length) continue;
+    const target = (!S.gamesPerTeam || S.gamesPerTeam <= 0) ? ids.length - 1 : S.gamesPerTeam;
+    for(const id of ids){
+      if((cnt[id] || 0) !== target)
+        return `${GLAB(g)}조 경기 수 불일치 — 목표 팀당 ${target}경기, 실제 ${cnt[id] || 0}경기.`;
+    }
+  }
+  return null;
 }
 
 const isDone = m => m.sa !== '' && m.sb !== '' && +m.sa !== +m.sb;
@@ -1649,7 +1740,10 @@ function swapBracketSlots(fromMatch, fromSide, toMatch, toSide){
 function readFormat(){
   S.numTeams = Math.max(4, +document.getElementById('numTeams').value || 4);
   S.numGroups = Math.max(1, +document.getElementById('numGroups').value || 1);
-  S.gamesPerTeam = Math.max(0, +document.getElementById('gamesPerTeam').value || 0);
+  // 부분 리그 최소 보장 = MIN_GAMES(2): 1을 입력해도 2로 올림 (0은 풀리그 유지)
+  const rawX = Math.max(0, +document.getElementById('gamesPerTeam').value || 0);
+  S.gamesPerTeam = rawX > 0 ? Math.max(MIN_GAMES, rawX) : 0;
+  if(rawX > 0 && rawX < MIN_GAMES) document.getElementById('gamesPerTeam').value = MIN_GAMES;
   if(S.numGroups > S.numTeams) S.numGroups = S.numTeams;
 }
 function renderFormatPreview(){
@@ -1668,14 +1762,24 @@ function renderFormatPreview(){
     // 실현 불가(전원 정확히 X 불가) 조는 생성 차단 예고
     const X = S.gamesPerTeam, warns = new Set();
     sizes.forEach(n => {
+      if(n === 1){ warns.add(`1팀 조: 경기 불가 — 팀 추가 또는 조 수 축소 필요`); return; }
       if(n < 2) return;
-      if((X <= n - 1) && (n % 2 === 0 || X % 2 === 0)) return;
+      if(groupFeasible(n, X)) return;
       const alts = nearestFeasibleX(n, X);
-      warns.add(`${n}팀 조: 팀당 ${X}경기 생성 불가${alts.length ? ` (가능: ${alts.join('/')})` : ''}`);
+      warns.add(alts.length
+        ? `${n}팀 조: 팀당 ${X}경기 생성 불가 (가능: ${alts.join('/')})`
+        : `${n}팀 조: 팀당 ${X}경기 생성 불가 — 팀 추가 필요`);
     });
     warns.forEach(w => el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ ${w}</span>`);
   } else {
     el.innerHTML += `<span class="pchip">풀리그(전체)</span>`;
+    // 풀리그도 최소 2경기 보장 — 2팀 이하 조 검출
+    const warns = new Set();
+    sizes.forEach(n => {
+      if(n === 1) warns.add(`1팀 조: 경기 불가 — 팀 추가 또는 조 수 축소 필요`);
+      else if(n - 1 < MIN_GAMES) warns.add(`${n}팀 조: 풀리그로도 팀당 ${n - 1}경기뿐 (최소 ${MIN_GAMES}경기 미달)`);
+    });
+    warns.forEach(w => el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ ${w}</span>`);
   }
   el.innerHTML += `<span class="pchip">예선 ${totalGames}경기</span>`;
   // 본선 진출 구조 (1위 자동 + 와일드카드)

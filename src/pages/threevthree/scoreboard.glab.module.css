@@ -336,7 +336,9 @@
     justify-content: center;
     gap: 10px;
     z-index: 10;
-    width: 600px;
+    /* 고정 600px는 좁은 화면에서 좌우 콘텐츠와 겹치며 잘림 — 내용 크기에 맞춤 */
+    width: auto;
+    max-width: min(600px, 50vw);
     text-align: center;
 }
 .periodText {
@@ -1448,10 +1450,14 @@
     color: var(--sb-muted); font-weight: 400; font-size: 12px; letter-spacing: 0.22em;
 }
 
-/* 파울 도트: 18px 원, 켜짐 초록 / 페널티 빨강 (글로우 제거) */
+/* 파울 도트: 18px 원, 글로우 제거 — 단계별 색: 1-3 초록 / 4-6 주황(경고) / 7-9 빨강(페널티) / 10 보라
+   버그픽스: 이 오버라이드 블록에 dotWarning·dotSevere가 빠져 있어
+   dotWarning은 원본(1316, dotActive와 동일 초록+글로우)이 적용 → 경고 단계 색이 구분되지 않았음 */
 .foulIndicatorDot { width: 18px; height: 18px; background: var(--sb-border); box-shadow: none; }
 .dotActive { background: var(--sb-green); box-shadow: none; }
+.dotWarning { background: #ee7c1b; box-shadow: none; }
 .dotPenalty { background: var(--sb-red); box-shadow: none; }
+.dotSevere { background: #b000ff; box-shadow: none; }
 
 /* 점수 +/− 버튼: 네이비 면 + 크림 글자 */
 .scoreBtnMicro { background: var(--sb-surface); color: var(--glab-cream); border: 2px solid var(--sb-border); }
@@ -1462,33 +1468,37 @@
 .teamNameRow { background: none; border-radius: 0; padding: 4px 12px; box-shadow: none; }  /* 팀명 검은 플레이트 제거 */
 .teamBlock::before { opacity: 0.18; }                              /* 팀 색 테두리 약하게 */
 
-/* ── PR-C: 전광판 텍스트/숫자 Pretendard 통일 (가독성 우선). Anton은 로고/헤더 영문에만 유지 ── */
-/* 점수·게임클락·샷클락 = Pretendard 굵게 + 고정폭 숫자(tabular-nums)로 자릿수 흔들림 방지 */
+/* ── PR-C v2: 폰트 분기 — 영어/숫자(라틴) = Anton, 한글 = Pretendard ──
+   직전 'Pretendard 통일' 결정을 뒤집고 원래 분리로 복귀 (사장 지시 2026-06-11).
+   기법: Anton에는 한글 글리프가 없으므로 'Anton, Pretendard' 스택이면
+   라틴/숫자 → Anton, 한글 → Pretendard 폴백으로 글자 종류별 자동 분기된다. */
+/* 점수·게임클락·샷클락 = 숫자 → Anton. 단일 웨이트 폰트라 400 (faux bold 방지).
+   자릿수 흔들림은 Anton 자체 균일폭 + tabular-nums 선언으로 보정 */
 .scoreGiant,
 .timerGiant,
 .shotClockGiant {
-    font-family: 'Pretendard', 'Inter', sans-serif;
-    font-weight: 800;
+    font-family: 'Anton', 'Pretendard', 'Inter', sans-serif;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0;
+    letter-spacing: 0.02em;
 }
 /* 2-클래스 base(.timerGroup .timerGiant 등)가 폰트를 잡을 경우 대비 — specificity 동급 보정 */
 .timerGroup .timerGiant,
 .shotClockGroup .shotClockGiant {
-    font-family: 'Pretendard', 'Inter', sans-serif;
-    font-weight: 800;
+    font-family: 'Anton', 'Pretendard', 'Inter', sans-serif;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
 }
-/* 팀명 = Pretendard 굵게 (가독성) */
+/* 팀명 = 영문 Anton / 한글 Pretendard 자동 분기. weight 700: Anton은 합성 굵기, 한글은 Pretendard 700 */
 .teamNameHuge {
-    font-family: 'Pretendard', 'Inter', sans-serif;
-    font-weight: 800;
+    font-family: 'Anton', 'Pretendard', 'Inter', sans-serif;
+    font-weight: 700;
 }
-/* 라벨(GAME CLOCK / SHOT CLOCK / TEAM FOULS 등) = Pretendard */
+/* 라벨(GAME CLOCK / SHOT CLOCK / TEAM FOULS 등 영문) = Anton, 한글 조각은 Pretendard 폴백 */
 .timerLabel,
 .foulLabel {
-    font-family: 'Pretendard', 'Inter', sans-serif;
-    font-weight: 700;
+    font-family: 'Anton', 'Pretendard', 'Inter', sans-serif;
+    font-weight: 400;
 }
 
 /* ── PR-E: 라이브 전광판 좌우 여백 최소화 — 화면 꽉 채움 (Admin 전용 glab CSS, 바탕화면 무영향) ── */
