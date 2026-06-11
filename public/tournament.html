@@ -6,7 +6,9 @@
 <title>GRIT LAB · 3X3 Tournament</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<!-- PR-C: 한글 = Pretendard (Black Han Sans 대체 — 한글이 뭉개져 보이는 문제) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
   /* ===========================================================
      GRIT LAB — 3X3 Tournament (대회 관리 + 빌더 + 지난 대회 결과)
@@ -26,8 +28,9 @@
     --red:       #d8302c;
     --red-d:     #b9221f;
 
-    --display: 'Anton', 'Black Han Sans', sans-serif;
-    --ui:      'Archivo', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    /* PR-C 폰트 분기: Anton에 한글 글리프가 없어 라틴/숫자 → Anton, 한글 → Pretendard 자동 폴백 */
+    --display: 'Anton', 'Pretendard', sans-serif;
+    --ui:      'Archivo', 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
 
     --shadow: 0 8px 28px rgba(0,0,0,.35);
   }
