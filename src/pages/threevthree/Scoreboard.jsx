@@ -877,16 +877,19 @@ export default function ThreeVThreeScoreboard() {
                     <div className={styles.setupPanelInner} onClick={e => e.stopPropagation()}>
                         <h3 className={styles.setupPanelTitle}>팀 파울 수정 (Team {showEditFoul})</h3>
                         <div className={styles.newSessionForm} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMins} onChange={e => setTempMins(parseInt(e.target.value)||0)} />
-                            <span style={{ color: 'white' }}>분</span>
-                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempSecs} onChange={e => setTempSecs(parseInt(e.target.value)||0)} />
-                            <span style={{ color: 'white' }}>초</span>
-                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMsec} onChange={e => setTempMsec(parseInt(e.target.value)||0)} />
-                            <span style={{ color: 'white' }}>.x초</span>
+                            <input
+                                type="number"
+                                className={styles.setupInput}
+                                style={{ width: 80 }}
+                                value={tempFoul}
+                                onChange={e => setTempFoul(Math.max(0, parseInt(e.target.value)||0))}
+                                autoFocus
+                            />
+                            <span style={{ color: 'white' }}>파울</span>
                             <button className={styles.setupCreateBtn} onClick={() => {
-                                const totalSecs = (parseInt(tempMins)||0)*60 + (parseInt(tempSecs)||0) + (parseInt(tempMsec)||0)*0.1;
-                                setGame(prev => ({ ...prev, [editTarget === 'GAME' ? 'game_time' : 'shot_clock']: totalSecs }));
-                                setShowEditTime(false);
+                                const nextFoul = Math.max(0, parseInt(tempFoul)||0);
+                                setGame(prev => ({ ...prev, [showEditFoul === 'A' ? 'team_a_fouls' : 'team_b_fouls']: nextFoul }));
+                                setShowEditFoul(null);
                             }}>
                                 확인
                             </button>
@@ -899,19 +902,19 @@ export default function ThreeVThreeScoreboard() {
             {showEditTime && (
                 <div className={styles.setupPanel} onClick={() => setShowEditTime(false)}>
                     <div className={styles.setupPanelInner} onClick={e => e.stopPropagation()}>
-                        <h3 className={styles.setupPanelTitle}>타이머 시간 설정</h3>
-                        <div className={styles.newSessionForm}>
-                            <input
-                                type="number"
-                                className={styles.setupInput}
-                                value={tempTime}
-                                onChange={e => setTempTime(e.target.value)}
-                                autoFocus
-                            />
-                            <span style={{ color: 'white', alignSelf: 'center' }}>분</span>
+                        <h3 className={styles.setupPanelTitle}>
+                            {editTarget === 'GAME' ? '게임 시간 설정' : '샷클락 설정'}
+                        </h3>
+                        <div className={styles.newSessionForm} style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMins} onChange={e => setTempMins(parseInt(e.target.value)||0)} autoFocus />
+                            <span style={{ color: 'white' }}>분</span>
+                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempSecs} onChange={e => setTempSecs(parseInt(e.target.value)||0)} />
+                            <span style={{ color: 'white' }}>초</span>
+                            <input type="number" className={styles.setupInput} style={{ width: 60 }} value={tempMsec} onChange={e => setTempMsec(parseInt(e.target.value)||0)} />
+                            <span style={{ color: 'white' }}>.x초</span>
                             <button className={styles.setupCreateBtn} onClick={() => {
-                                const newSec = parseInt(tempTime) * 60;
-                                setGame(prev => ({ ...prev, game_time: Number.isNaN(newSec) ? 600 : newSec, shot_clock: 12 }));
+                                const totalSecs = (parseInt(tempMins)||0)*60 + (parseInt(tempSecs)||0) + (parseInt(tempMsec)||0)*0.1;
+                                setGame(prev => ({ ...prev, [editTarget === 'GAME' ? 'game_time' : 'shot_clock']: totalSecs }));
                                 setShowEditTime(false);
                             }}>
                                 확인
