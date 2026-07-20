@@ -1403,9 +1403,13 @@ async function resumeInBuilder(id){
       if(finalRow){
         final.a = toQ(finalRow.team_a_name) || final.a;
         final.b = toQ(finalRow.team_b_name) || final.b;
-        if(finalRow.winner){
+        // 점수는 winner 유무와 무관하게 복원한다. winner가 아직 없는(진행 중) 결승도
+        // 점수가 들어가 있을 수 있는데, 예전에는 이 경우 sa/sb가 ''로 남아 저장 시 0으로 덮여 사라졌다.
+        if(finalRow.status === 'ENDED' || finalRow.winner || finalRow.team_a_score || finalRow.team_b_score){
           final.sa = String(finalRow.team_a_score ?? '');
           final.sb = String(finalRow.team_b_score ?? '');
+        }
+        if(finalRow.winner){
           final.winner = finalRow.winner === 'A_WIN' ? final.a : final.b;
         }
       }
@@ -1472,6 +1476,22 @@ async function saveToSupabase(markEnded){
 
   if(!rows.length){ stateEl.textContent = '저장할 경기가 없습니다'; return; }
 
+  // 1-b) 3x3 무승부 없음 — 점수가 입력됐는데 동점인 경기는 '미완료'로 저장되어
+  //      순위·진출 계산에서 조용히 빠진다(isDone이 동점을 미완료 취급). 오기입 가능성이
+  //      높으므로 저장 전에 확인을 받는다. (Admin.jsx는 동점 저장 자체를 차단 — 여기는
+  //      일괄 저장이라 confirm으로 진행 여부를 맡긴다)
+  const tiedGames = S.groupGames.filter(m => m.sa !== '' && m.sb !== '' && +m.sa === +m.sb);
+  if(tiedGames.length){
+    const list = tiedGames.slice(0, 5)
+      .map(m => `  · ${GLAB(m.g)}조 ${teamName(m.aId)} ${m.sa}:${m.sb} ${teamName(m.bId)}`).join('\n');
+    if(!confirm(
+      `⚠️ 동점으로 입력된 경기가 ${tiedGames.length}건 있습니다 (3x3은 무승부가 없습니다).\n\n` +
+      list + (tiedGames.length > 5 ? `\n  · … 외 ${tiedGames.length - 5}건` : '') +
+      '\n\n동점 경기는 "미완료"로 저장되어 순위·진출 계산에서 제외됩니다.\n' +
+      '오기입이 아닌지 확인하세요. 그대로 저장할까요?'
+    )){ stateEl.textContent = '저장 취소됨'; return; }
+  }
+
   // 2) ⚠️ 저장 전 안전 가드: 현재 DB 상태를 다시 확인.
   //    빌더가 모르는 라운드(QUARTER/3RD_PLACE)나 라이브 경기가 있으면 저장 차단(데이터 손실 방지).
   const { data: existing, error: chkErr } = await sb
@@ -1484,6 +1504,35 @@ async function saveToSupabase(markEnded){
     return;
   }
 
+  // 2-b) ⚠️ stale write 가드: 빌더는 "열 때" 한 번만 DB를 읽는다.
+  //      그 사이 전광판 Admin에서 결과가 입력되면 빌더 스냅샷은 낡은 상태가 되고,
+  //      저장하면 낡은 스냅샷이 최신 결과를 덮어쓴다(3) 단계에서 delete 후 insert하므로).
+  //      → DB에 기록된 완료 경기(ENDED)가 이번 저장으로 "사라지거나 결과가 지워지는지" 검사한다.
+  //      점수 수정(양쪽 다 ENDED인데 값만 다름)은 의도적 편집이므로 통과시킨다.
+  const pairKey = (rd, a, b) => rd + '|' + [String(a || ''), String(b || '')].sort().join('~');
+  const outgoing = new Map();
+  rows.forEach(r => outgoing.set(pairKey(r.round, r.team_a_name, r.team_b_name), r));
+  const willLose = (existing || [])
+    .filter(r => r.status === 'ENDED')
+    .filter(r => {
+      const out = outgoing.get(pairKey(r.round, r.team_a_name, r.team_b_name));
+      if(!out) return true;                 // 경기 자체가 사라짐
+      return out.status !== 'ENDED';        // 기록된 결과가 미완료로 되돌아감
+    });
+  if(willLose.length){
+    stateEl.textContent = '저장 차단됨';
+    const list = willLose.slice(0, 8)
+      .map(r => `  · ${r.round} ${r.team_a_name} ${r.team_a_score}:${r.team_b_score} ${r.team_b_name}`)
+      .join('\n');
+    alert(
+      `저장을 차단했습니다. 이미 기록된 완료 경기 ${willLose.length}건이 지워집니다.\n\n` +
+      list + (willLose.length > 8 ? `\n  · … 외 ${willLose.length - 8}건` : '') +
+      '\n\n빌더를 연 뒤 전광판 Admin에서 결과가 입력된 것으로 보입니다.\n' +
+      '이 창의 내용은 낡았습니다. 대회를 빌더에서 다시 불러온 뒤(TOURNAMENTS → 빌더에서 이어서 작성) 저장하세요.'
+    );
+    return;
+  }
+
   // 3) 빌더 도메인(GROUP_*/SEMI/FINAL) 전체를 교체 대상으로 삭제 — QUARTER/3RD_PLACE는 보존.
   //    이번 저장에 없는 라운드(예: 브라켓 제거 후 재저장 시 남은 SEMI/FINAL)도 함께 정리되어
   //    스테일 row가 남지 않는다. (위 가드에서 admin 라운드 부재를 이미 확인했으므로 안전)
@@ -1492,11 +1541,31 @@ async function saveToSupabase(markEnded){
     .eq('tournament_id', S.tournamentId)
     .not('round', 'in', '("QUARTER","3RD_PLACE")');
   if(delError){ stateEl.textContent = '저장 실패: ' + delError.message; alert('저장 실패: ' + delError.message); return; }
+
+  // 삭제된 원본 스냅샷 — insert 실패 시 되돌리기 위해 보관 (id/created_at은 제외하고 재삽입)
+  const removed = (existing || [])
+    .filter(r => r.round !== 'QUARTER' && r.round !== '3RD_PLACE')
+    .map(({ id, created_at, updated_at, ...rest }) => rest);
+
   const { error: insError } = await sb.from('game_3v3_brackets').insert(rows);
   if(insError){
-    // delete는 됐는데 insert 실패 → 사용자에게 명확히 알림(수동 재시도 유도)
+    // delete는 됐는데 insert 실패 → 이 상태로 두면 경기 기록이 사라진 채 남는다. 원본 복구 시도.
+    let restored = false;
+    if(removed.length){
+      const { error: rbError } = await sb.from('game_3v3_brackets').insert(removed);
+      restored = !rbError;
+    }
     stateEl.textContent = '저장 실패: ' + insError.message;
-    alert('저장 실패(삽입 단계): ' + insError.message + '\n다시 저장을 시도하세요.');
+    alert(
+      '저장 실패(삽입 단계): ' + insError.message + '\n\n' +
+      (removed.length === 0
+        ? '삭제된 기존 데이터가 없어 손실은 없습니다. 다시 저장을 시도하세요.'
+        : restored
+          ? `기존 경기 ${removed.length}건은 원상 복구했습니다. 다시 저장을 시도하세요.`
+          : `⚠️ 기존 경기 ${removed.length}건의 복구에도 실패했습니다.\n` +
+            '이 창을 닫지 마시고 담당자에게 알리세요. 창을 닫으면 복구 정보가 사라집니다.')
+    );
+    if(!restored && removed.length) window.__gritlabRescue = removed;  // 콘솔에서 수동 복구용
     return;
   }
 
