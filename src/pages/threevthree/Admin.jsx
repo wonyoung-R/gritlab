@@ -219,6 +219,8 @@ export default function ThreeVThreeAdmin() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(null);
     const [deleting, setDeleting] = useState(null);
+    // 네트워크/조회 실패 상태 — "경기 0건"과 "조회 실패"를 화면에서 구분하기 위함 (NEW-02)
+    const [netError, setNetError] = useState(null);
 
     // ── PR-F: 수동 편성 (순서 변경·라운드 이동·ENDED 잠금·몰수패) ──
     const [unlockedIds, setUnlockedIds] = useState(new Set()); // ENDED 잠금 해제된 경기 id
@@ -298,10 +300,14 @@ export default function ThreeVThreeAdmin() {
     useEffect(() => { fetchTournaments(); }, []);
 
     const fetchTournaments = async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('tournaments')
             .select('id, title, type, status, created_at')
             .order('created_at', { ascending: false });
+
+        // 조회 실패를 "대회 0건"으로 위장하지 않는다 — 기존 목록 유지 + 배너 (NEW-02)
+        if (error) { setNetError({ scope: '대회 목록', message: error.message }); setLoading(false); return; }
+        setNetError(null);
 
         const allData = data || [];
         setTournaments(allData);
@@ -340,12 +346,16 @@ export default function ThreeVThreeAdmin() {
     }, [activeRound, allMatches]);
 
     const fetchMatches = async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('game_3v3_brackets')
             .select('*')
             .eq('tournament_id', activeTournamentId)
             .order('round')
             .order('match_order', { ascending: true });
+        // 조회 실패 시 기존 allMatches를 비우지 않는다 — 빈 화면을 "데이터 소실"로
+        // 오인해 대진표를 다시 만드는 사고를 막는다 (NEW-02)
+        if (error) { setNetError({ scope: '경기 목록', message: error.message }); return; }
+        setNetError(null);
         setAllMatches(data || []);
     };
 
@@ -525,7 +535,16 @@ export default function ThreeVThreeAdmin() {
         if (data) setAllMatches(prev => [...prev, data]);
     };
 
+    // 성공 여부를 반환한다 — saveLiveAndClose가 이 값으로 인터미션 진입을 게이트한다.
     const handleSaveMatch = async (match) => {
+        // 3x3에는 무승부가 없다. 동점이 저장되면 winner=null·status 유지로 남아
+        // 4강 자동 진행이 원인 표시 없이 멈춘다(BUG-007) → 결과성 동점 저장은 차단.
+        // 0:0인 PENDING 저장(경기 전 팀명 입력)은 정상 흐름이므로 통과시킨다.
+        if (match.team_a_score === match.team_b_score
+            && (match.team_a_score > 0 || match.status === 'ENDED')) {
+            alert('3x3은 무승부가 없습니다. 점수를 다시 확인하세요.\n(동점은 저장되지 않습니다)');
+            return false;
+        }
         setSaving(match.id);
         const winner = match.team_a_score > match.team_b_score ? 'A_WIN'
             : match.team_b_score > match.team_a_score ? 'B_WIN' : null;
@@ -536,13 +555,12 @@ export default function ThreeVThreeAdmin() {
                 team_a_score: match.team_a_score, team_b_score: match.team_b_score,
                 winner, status: winner ? 'ENDED' : match.status, updated_at: new Date().toISOString(),
             }).eq('id', match.id);
-        if (error) { alert('저장 실패: ' + error.message); }
-        else {
-            const next = allMatches.map(m => m.id === match.id ? { ...m, ...match, winner, status: winner ? 'ENDED' : m.status } : m);
-            setAllMatches(next);
-            maybeAutoFillBracket(next); // 마지막 예선/4강 종료 감지 → 대진 자동 완성
-        }
         setSaving(null);
+        if (error) { alert('저장 실패: ' + error.message); return false; }
+        const next = allMatches.map(m => m.id === match.id ? { ...m, ...match, winner, status: winner ? 'ENDED' : m.status } : m);
+        setAllMatches(next);
+        maybeAutoFillBracket(next); // 마지막 예선/4강 종료 감지 → 대진 자동 완성
+        return true;
     };
 
     // ── 대진 자동 완성: 예선 전부 종료 → 4강 시딩, 4강 전부 종료 → 결승 매치업 ──
@@ -612,10 +630,20 @@ export default function ThreeVThreeAdmin() {
         }
     };
 
+    // 이후 라운드(SEMI/FINAL)에 이미 팀명이 확정됐는지 — 자동 시딩은 1회성이라
+    // 그 뒤의 예선/4강 정정은 대진에 자동 반영되지 않는다 (BUG-006)
+    const downstreamSeeded = (round) => {
+        const downstream = round?.startsWith('GROUP_') ? 'SEMI' : round === 'SEMI' ? 'FINAL' : null;
+        if (!downstream) return false;
+        return allMatches.some(m => m.round === downstream && (m.team_a_name || m.team_b_name));
+    };
+
     const handleDeleteMatch = async (match) => {
         if (!confirm('이 경기를 삭제하시겠습니까?')) return;
         // 이미 치러진 경기(ENDED)는 결과 보호 — 2단계 확인
         if (match.status === 'ENDED' && !confirm(`⚠️ 종료된 경기입니다.\n${match.team_a_name} ${match.team_a_score} : ${match.team_b_score} ${match.team_b_name}\n\n삭제하면 경기 기록이 영구히 사라지고 순위에서 제외됩니다. 정말 삭제할까요?`)) return;
+        // 4강/결승 대진이 이미 이 결과 기준으로 확정된 경우 — 삭제해도 대진은 자동 재계산되지 않는다 (BUG-006)
+        if (downstreamSeeded(match.round) && !confirm('⚠️ 이후 라운드 대진이 이미 이 경기 결과를 반영해 확정되어 있습니다.\n삭제해도 4강/결승 대진은 자동으로 다시 계산되지 않습니다.\n계속하면 해당 대진의 팀명이 맞는지 직접 확인·수정해야 합니다.\n\n계속 삭제할까요?')) return;
         setDeleting(match.id);
         const { error } = await supabase.from('game_3v3_brackets').delete().eq('id', match.id);
         if (error) { alert('삭제 실패: ' + error.message); }
@@ -635,7 +663,11 @@ export default function ThreeVThreeAdmin() {
             setUnlockedIds(prev => { const s = new Set(prev); s.delete(match.id); return s; });
             return;
         }
-        if (!confirm('⚠️ 종료된 경기의 잠금을 해제할까요?\n결과를 수정하면 순위(standings)에 즉시 반영됩니다.')) return;
+        // BUG-006: "순위에 즉시 반영"만 안내하면 4강 대진도 갱신되는 걸로 오해한다 — 한계를 명시
+        if (!confirm('⚠️ 종료된 경기의 잠금을 해제할까요?\n결과를 수정하면 순위(standings)에 즉시 반영됩니다.'
+            + (downstreamSeeded(match.round)
+                ? '\n\n단, 이미 확정된 4강/결승 대진은 자동으로 바뀌지 않습니다.\n수정 후 해당 대진의 팀명을 직접 확인하세요.'
+                : ''))) return;
         setUnlockedIds(prev => new Set(prev).add(match.id));
     };
 
@@ -760,11 +792,20 @@ export default function ThreeVThreeAdmin() {
     // ── 라이브 기록 저장 → 인터미션(다음 경기 안내) ──
     const saveLiveAndClose = async () => {
         if (!liveMatch) return;
-        // 1) 기존 저장 로직 그대로
+        // 3x3 무승부 없음 — 동점 상태로는 경기를 끝낼 수 없다 (승부 확정 후 종료)
+        if (teamAScore === teamBScore) {
+            alert('동점입니다. 3x3은 무승부가 없습니다 — 승부를 확정한 뒤 종료하세요.');
+            return;
+        }
+        // 1) 저장 — 성공 시 handleSaveMatch가 목록 상태(allMatches)까지 갱신한다
         const updated = { ...liveMatch, team_a_score: teamAScore, team_b_score: teamBScore };
-        updateMatch(liveMatch.id, 'team_a_score', teamAScore);
-        updateMatch(liveMatch.id, 'team_b_score', teamBScore);
-        await handleSaveMatch(updated);
+        const ok = await handleSaveMatch(updated);
+        if (!ok) {
+            // 저장 실패(네트워크 등) — 인터미션으로 넘어가면 라이브 화면의 점수가 사라진 채
+            // 결과가 DB에 없는 상태가 된다. 라이브 화면을 유지해 재시도를 보장한다.
+            // (실패 사유 alert는 handleSaveMatch가 이미 띄웠다)
+            return;
+        }
         setTimerRunning(false);
         // 2) 저장 성공 후 → 인터미션 화면으로 전환 (90초 카운트다운)
         setIntermissionNext(findNextMatch(liveMatch.id));
@@ -1478,6 +1519,22 @@ export default function ThreeVThreeAdmin() {
                     </button>
                 )}
             </header>
+
+            {/* 네트워크/조회 실패 배너 — 화면의 데이터가 최신이 아닐 수 있음을 명시 (NEW-02) */}
+            {netError && (
+                <div className="max-w-5xl mx-auto mt-4 px-6">
+                    <div className="flex items-center justify-between gap-4 bg-[#d8302c]/15 border-2 border-[#d8302c]/60 px-5 py-3 text-[#f3b0ae]">
+                        <span className="text-sm">
+                            ⚠️ {netError.scope} 불러오기 실패 — 화면의 데이터는 마지막으로 성공한 조회 기준입니다.
+                            네트워크를 확인하세요. ({netError.message})
+                        </span>
+                        <button
+                            onClick={() => { fetchTournaments(); if (activeTournamentId) fetchMatches(); }}
+                            className="shrink-0 px-4 py-2 text-sm border-2 border-[#d8302c]/60 hover:bg-[#d8302c]/25 transition"
+                        >다시 시도</button>
+                    </div>
+                </div>
+            )}
 
             <div className="max-w-5xl mx-auto p-6 space-y-6">
 

@@ -1476,6 +1476,22 @@ async function saveToSupabase(markEnded){
 
   if(!rows.length){ stateEl.textContent = '저장할 경기가 없습니다'; return; }
 
+  // 1-b) 3x3 무승부 없음 — 점수가 입력됐는데 동점인 경기는 '미완료'로 저장되어
+  //      순위·진출 계산에서 조용히 빠진다(isDone이 동점을 미완료 취급). 오기입 가능성이
+  //      높으므로 저장 전에 확인을 받는다. (Admin.jsx는 동점 저장 자체를 차단 — 여기는
+  //      일괄 저장이라 confirm으로 진행 여부를 맡긴다)
+  const tiedGames = S.groupGames.filter(m => m.sa !== '' && m.sb !== '' && +m.sa === +m.sb);
+  if(tiedGames.length){
+    const list = tiedGames.slice(0, 5)
+      .map(m => `  · ${GLAB(m.g)}조 ${teamName(m.aId)} ${m.sa}:${m.sb} ${teamName(m.bId)}`).join('\n');
+    if(!confirm(
+      `⚠️ 동점으로 입력된 경기가 ${tiedGames.length}건 있습니다 (3x3은 무승부가 없습니다).\n\n` +
+      list + (tiedGames.length > 5 ? `\n  · … 외 ${tiedGames.length - 5}건` : '') +
+      '\n\n동점 경기는 "미완료"로 저장되어 순위·진출 계산에서 제외됩니다.\n' +
+      '오기입이 아닌지 확인하세요. 그대로 저장할까요?'
+    )){ stateEl.textContent = '저장 취소됨'; return; }
+  }
+
   // 2) ⚠️ 저장 전 안전 가드: 현재 DB 상태를 다시 확인.
   //    빌더가 모르는 라운드(QUARTER/3RD_PLACE)나 라이브 경기가 있으면 저장 차단(데이터 손실 방지).
   const { data: existing, error: chkErr } = await sb
