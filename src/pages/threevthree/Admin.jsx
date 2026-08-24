@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
+import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -160,8 +160,14 @@ let _shotBuf = null;
 
 const _ensureCtx = () => {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
     return _audioCtx;
+};
+
+// 브라우저가 유휴 상태에서 AudioContext를 자동 suspend 시키는 경우, resume()이 끝나기 전에
+// start(0)을 호출하면 실제 소리 시작이 resume 완료까지 밀림(부저 지연 원인). 미리 깨워둠.
+const _wakeCtx = () => {
+    const ctx = _ensureCtx();
+    if (ctx.state === 'suspended') ctx.resume();
 };
 
 const _loadBuf = async (url) => {
@@ -181,10 +187,11 @@ const initBuzzers = async () => {
     } catch (e) { /* silent — 부저 로드 실패 시 무음 */ }
 };
 
-const _playBuf = (buf) => {
+const _playBuf = async (buf) => {
     if (!buf) return;
     try {
         const ctx = _ensureCtx();
+        if (ctx.state === 'suspended') await ctx.resume(); // resume 완료를 기다린 후 재생 — 지연 방지
         const src = ctx.createBufferSource();
         src.buffer = buf;
         src.connect(ctx.destination);
@@ -243,6 +250,8 @@ export default function ThreeVThreeAdmin() {
     const shotClockLastTapRef = useRef(0);
     const [showEditTime, setShowEditTime] = useState(false);
     const [showKbdGuide, setShowKbdGuide] = useState(false); // 키보드 안내 오버레이 (대회당 1회)
+    // 팀 좌우 화면 표시 반전 — team_a/team_b 데이터·키보드 매핑은 그대로, 화면 위치만 스왑 (새로고침 시 초기화, 로컬 상태)
+    const [sidesSwapped, setSidesSwapped] = useState(false);
     // ── 인터미션(경기 종료 후 다음 경기 안내 카운트다운) ──
     const [showIntermission, setShowIntermission] = useState(false);
     const [intermissionSec, setIntermissionSec] = useState(90);
@@ -362,6 +371,7 @@ export default function ThreeVThreeAdmin() {
     // ── 타이머 로직 (100ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
+            _wakeCtx(); // 클락 시작 시점에 미리 깨워서 종료 부저(0초) 시점 resume 지연을 방지
             let lastUpdate = Date.now();
             timerRef.current = setInterval(() => {
                 const now = Date.now();
@@ -399,7 +409,8 @@ export default function ThreeVThreeAdmin() {
     // 왼손=A팀 / 오른손=B팀 / 가운데=공통. 바탕화면 Scoreboard.jsx에는 영향 없음(독립 컴포넌트)
     // 매핑 v2: 득점 A/;(+1) S/L(+2) D/K(-1) · 파울 G/H · 타임아웃 V/N
     //          샷클락 J(리셋+재개) F(정지/재개 토글) · 게임클락 Space(시작/정지) R(리셋)
-    //          부저 B · 시간 미세조정 방향키(↑↓ 게임클락, ←→ 샷클락)
+    //          부저 B · 시간 미세조정 방향키(←→ 샷클락)
+    // 게임클락 ±1초 조정 단축키(↑↓)는 제거됨 — 게임클락 미세조정은 마우스(시간편집 모달)로만 (사장 요청 2026-08-20)
     // ────────────────────────────────────────
     useEffect(() => {
         if (!liveMatch) return;     // 라이브 모드에서만 동작
@@ -415,13 +426,8 @@ export default function ThreeVThreeAdmin() {
             //    e.key는 한글모드에서 'ㅂ'/'ㅈ'/'ㄹ' 또는 'Process'로 들어와 매칭 실패함.
 
             // ── 시간 +/- 조정 (방향키, 홀드 시 빠른 스크럽 허용) ──
+            // 게임클락 ±1초(↑↓)는 마우스 전용으로 이관 — 여기 없음 (사장 요청 2026-08-20)
             switch (e.code) {
-                case 'ArrowUp':    // 게임클락 +1초
-                    e.preventDefault(); setTimerRunning(false);
-                    setGameTime(t => Number((t + 1).toFixed(1))); return;
-                case 'ArrowDown':  // 게임클락 -1초
-                    e.preventDefault(); setTimerRunning(false);
-                    setGameTime(t => Math.max(0, Number((t - 1).toFixed(1)))); return;
                 case 'ArrowRight': // 샷클락 +1초
                     e.preventDefault(); setShotClockPaused(true);
                     setShotClock(s => Number((s + 1).toFixed(1))); return;
@@ -1267,6 +1273,9 @@ export default function ThreeVThreeAdmin() {
                         <button className={styles.iconBtn} onClick={() => setShowKbdGuide(true)} title="키보드 조작 안내">
                             <Keyboard size={20} />
                         </button>
+                        <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} title="팀 좌우 화면 반전">
+                            <ArrowLeftRight size={20} />
+                        </button>
                         <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
                             <BellRing size={20} />
                         </button>
@@ -1279,7 +1288,7 @@ export default function ThreeVThreeAdmin() {
                 {/* 메인 스코어보드 */}
                 <main className={styles.main}>
                     {/* 팀 A */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 2 : 0 }}>
                     <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(60% 0.20 255)' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
@@ -1327,8 +1336,8 @@ export default function ThreeVThreeAdmin() {
                     </div>
                     </div>
 
-                    {/* 중앙: 타이머 & 샷클락 */}
-                    <div className={styles.centerBlock}>
+                    {/* 중앙: 타이머 & 샷클락 (좌우 반전 시에도 항상 가운데) */}
+                    <div className={styles.centerBlock} style={{ order: 1 }}>
                         <div className={styles.timerGroup}>
                             <p className={styles.timerLabel}>GAME CLOCK</p>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -1404,7 +1413,7 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     {/* 팀 B */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 0 : 2 }}>
                     <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(65% 0.21 38)' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
