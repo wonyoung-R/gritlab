@@ -920,7 +920,7 @@ export default function ThreeVThreeAdmin() {
         window.location.href = '/tournament.html';
     };
 
-    const renderFoulDots = (fouls) => {
+    const renderFoulDots = (fouls, light) => {
         const dots = [];
         const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
@@ -932,7 +932,7 @@ export default function ThreeVThreeAdmin() {
                 else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
                 else dotClass = styles.dotSevere;              // 10
             }
-            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
+            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${light ? styles.foulIndicatorDotLight : ''} ${dotClass}`} />);
         }
         return dots;
     };
@@ -1289,7 +1289,7 @@ export default function ThreeVThreeAdmin() {
                 <main className={styles.main}>
                     {/* 팀 A */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 2 : 0 }}>
-                    <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(60% 0.20 255)' }}>
+                    <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': '#fff' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
                                 <div className={styles.teamNameRow}>
@@ -1414,11 +1414,11 @@ export default function ThreeVThreeAdmin() {
 
                     {/* 팀 B */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 0 : 2 }}>
-                    <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': 'oklch(65% 0.21 38)' }}>
+                    <div className={`${styles.teamBlock} ${styles.teamBlockLight} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': '#aaaaaa' }}>
                         <div className={styles.teamHeaderRow}>
                             <div className={styles.teamNameWrap}>
-                                <div className={styles.teamNameRow}>
-                                    <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, (liveMatch.team_b_name || '팀 B').length) }}>
+                                <div className={`${styles.teamNameRow} ${styles.teamNameRowLight}`}>
+                                    <h2 className={`${styles.teamNameHuge} ${styles.teamNameHugeLight}`} style={{ '--name-len': Math.max(4, (liveMatch.team_b_name || '팀 B').length) }}>
                                         {liveMatch.team_b_name || '팀 B'}
                                     </h2>
                                 </div>
@@ -1427,24 +1427,24 @@ export default function ThreeVThreeAdmin() {
                         </div>
 
                         <div className={styles.scoreWrap}>
-                            <div className={`${styles.scoreGiant} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
+                            <div className={`${styles.scoreGiant} ${styles.scoreGiantLight} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
                                 onClick={() => setTeamBScore(s => s + 1)}>
                                 {teamBScore}
                             </div>
                             <div className={styles.scoreControlsVertical}>
-                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => s + 1); }}><Plus size={18} /></button>
-                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => Math.max(0, s - 1)); }}><Minus size={18} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => s + 1); }}><Plus size={18} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => Math.max(0, s - 1)); }}><Minus size={18} /></button>
                             </div>
                         </div>
 
                         <div className={styles.foulWrap}>
                             <div className={styles.foulLabel}>TEAM FOULS</div>
                             <div className={styles.foulControlsRow}>
-                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
                                 <div className={styles.foulDotsContainer} onClick={() => setTeamBFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
-                                    {renderFoulDots(teamBFouls)}
+                                    {renderFoulDots(teamBFouls, true)}
                                 </div>
-                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => f + 1); }}><Plus size={14} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => f + 1); }}><Plus size={14} /></button>
                             </div>
                             {teamBFouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
                         </div>
