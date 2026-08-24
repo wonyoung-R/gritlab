@@ -1305,8 +1305,14 @@
     gap: 16px;
 }
 .foulDotsContainer {
-    display: flex;
-    gap: 10px;
+    /* 2026-08-25 (사장 요청 "두줄 다섯개씩"): grid로 5열 고정 — 화면 폭과 무관하게 항상 5개씩 2줄 */
+    display: grid;
+    grid-template-columns: repeat(5, auto);
+    justify-content: center;
+    row-gap: 6px;
+    column-gap: clamp(4px, 1.5vw, 10px);
+    min-width: 0;
+    max-width: 100%;
 }
 .foulIndicatorDot {
     width: 20px;

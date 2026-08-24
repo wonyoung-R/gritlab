@@ -1360,12 +1360,19 @@
     gap: 16px;
 }
 .foulDotsContainer {
-    display: flex;
-    gap: 10px;
+    /* 2026-08-25 (사장 요청 "두줄 다섯개씩"): flex-wrap 대신 grid로 5열 고정 —
+       화면 폭과 무관하게 항상 정확히 5개씩 2줄 */
+    display: grid;
+    grid-template-columns: repeat(5, auto);
+    justify-content: center;
+    row-gap: 6px;
+    column-gap: clamp(4px, 1.5vw, 10px);
+    min-width: 0;
+    max-width: 100%;
 }
 .foulIndicatorDot {
-    width: 20px;
-    height: 20px;
+    width: clamp(12px, 3.5vw, 20px);
+    height: clamp(12px, 3.5vw, 20px);
     border-radius: 50%;
     background: rgba(255,255,255,0.12);
     transition: background 0.2s, box-shadow 0.2s;

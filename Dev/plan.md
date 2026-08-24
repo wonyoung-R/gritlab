@@ -175,6 +175,14 @@ human-gate: 있음 — 구현된 5건 현장 시각 검증 전 배포 금지 + m
 
 파일: `Scoreboard.jsx`, `scoreboard.module.css`, `scoreboard.glab.module.css`
 
+### 0-O. 파울점 5개씩 2줄 고정 (2026-08-25, PR #34 배포 직후 사장 실기기 재제보)
+
+**증상**: "파울 갯수의 동그라미가 프레임 밖으로 나오네". 좁은 팀 박스에서 파울점 10개+양옆 버튼이 한 줄(최소 386px 필요)에 안 들어가 넘침.
+
+**수정**: 사장 제안("두줄 다섯개씩") 그대로 적용 — `.foulDotsContainer`를 `flex` 대신 `display:grid; grid-template-columns: repeat(5, auto);`로 변경, 화면 폭과 무관하게 **항상** 5개씩 정확히 2줄 고정(넓은 화면에서도 동일 — flex-wrap처럼 폭에 따라 들쭉날쭉하지 않고 grid라 항상 5:5 보장). Playwright로 375px(폰)·1280px(데스크톱) 둘 다 5+5 확인.
+
+파일: `scoreboard.module.css`, `scoreboard.glab.module.css`
+
 ---
 
 > **상태 갱신 (2026-06-12, v2.2)**: 4차 요청 PR #27(빌더 경기순서·팀교환 드래그 + 4강 자동시딩 + 모드 게이트 + 전체화면 fit) + PR #28(모드 선택 랜딩·관리자모드=tournament.html·대회모드 대회선택→인터미션 우선 사이클·빌더 전체 경기 순서 화면·인터미션 조별 10초 순환) + PR #29(첫 인터미션 1:30 통일) + PR #30(경기 바로 시작 버튼·순환 잔여초·GAME CLOCK 힌트 제거)까지 전부 main 머지 + grit-lab.kr 배포·라이브 검증 완료.
