@@ -58,7 +58,7 @@ human-gate: 있음 — 구현된 5건 현장 시각 검증 전 배포 금지 + m
 
 | # | 구현 내용 | 파일 |
 |---|---------|------|
-| #1 | `.main` grid-template-columns `1fr auto 1fr` → `minmax(0,1fr) auto minmax(0,1fr)` (그리드 트랙이 긴 이름 때문에 늘어나는 근본원인 차단) + `.teamNameHuge` `white-space:nowrap` 제거, `word-break:keep-all; overflow-wrap:normal` 추가(어절 단위로만 줄바꿈) | `scoreboard.module.css`, `scoreboard.glab.module.css` |
+| #1 | `.main` grid-template-columns `1fr auto 1fr` → `minmax(0,1fr) auto minmax(0,1fr)` (그리드 트랙이 긴 이름 때문에 늘어나는 근본원인 차단) + `.teamNameHuge` `white-space:nowrap` 제거, `word-break:normal; overflow-wrap:anywhere` 추가(한글 음절 단위 줄바꿈 허용 + 공백 없는 극단적 긴 이름 최후 보험) | `scoreboard.module.css`, `scoreboard.glab.module.css` |
 | #2 | 키보드 핸들러에서 `ArrowUp`/`ArrowDown`(게임클락 ±1초) case 제거. `KeyboardGuide.jsx` 안내 오버레이에서도 해당 항목·키캡 제거(문서-동작 불일치 방지) | `Admin.jsx`, `KeyboardGuide.jsx` |
 | #5 | `ensureCtx()`가 `resume()`을 await 없이 호출하던 것을 수정 — `playBuf`를 async로 바꾸고 `suspended` 상태면 `resume()` 완료를 기다린 후 재생. 추가로 게임클락 시작(`timerRunning`) 시점에 `wakeCtx()`로 미리 깨워둠(종료 부저 시점 resume 지연 예방) | `Scoreboard.jsx`, `Admin.jsx` |
 | #6 | `scoreboard.glab.module.css` 캐스케이드 최우선 오버라이드 블록의 `.dotWarning`(주황→초록), `.dotSevere`(보라→빨강) 수정 + 하위 블록·`scoreboard.module.css`의 `.dotSevere`(보라→빨강)도 동일하게 수정. 1~6개=초록, 7개부터=빨강으로 통일 | `scoreboard.glab.module.css`, `scoreboard.module.css` |
@@ -67,6 +67,113 @@ human-gate: 있음 — 구현된 5건 현장 시각 검증 전 배포 금지 + m
 **검증**: `npm run build` 통과(2026-08-20). ESLint는 이 프로젝트에 `eslint.config.js`가 없어 실행 불가(기존 상태, 이번 작업과 무관).
 **주의**: #7은 새로고침 시 초기화되는 로컬 상태 — 여러 화면(바탕화면/Admin) 간 동기화나 새로고침 후 유지가 필요하면 DB 컬럼 추가가 필요하며, 이는 운영 DB 스키마 변경이라 별도 사장 승인 필요(Safety Net §1.3).
 **미검증**: #5(부저 지연)는 코드 근거(`resume()` 미대기)로 추정한 유력 원인이며, 실제 현장/기기에서 100% 재현되던 것인지는 확인 못함 — 현장 테스트로 개선 여부 확인 필요.
+
+### 0-G. 배포 후 회귀 발견 + 재수정 (2026-08-24)
+
+사장이 실제 배포본에서 #1·#2·#7 재현 안 됨을 보고 → 브라우저 캐시 문제로 오판했으나, 로컬 dev + Playwright 실브라우저 테스트로 재현한 결과 **#1이 진짜 버그였음을 확인**.
+
+**버그 1 — `word-break: keep-all`이 CJK 줄바꿈 규칙과 반대로 작동**: 한글은 기본적으로 음절 사이 어디서든 줄바꿈 가능한데 `keep-all`은 그 CJK 줄바꿈을 억제하는 속성 — 공백 없는 긴 한글 이름이 줄바꿈을 전혀 못 하고 그대로 잘림. `word-break: normal`로 교체(사실상 기존 declare 제거)해 해결. 실브라우저 스크린샷으로 재현→수정→검증 완료.
+
+**버그 2 (수정 과정에서 신규 발견) — `.teamBlock::before`의 `transition: border-color 0.4s, background 0.4s`가 렌더링 버그 유발**: 팀명이 줄바꿈되며 박스 높이가 바뀌는 순간 이 트랜지션 때문에 브라우저가 절대위치 테두리 가상요소(`::before`, `inset:4px`로 테두리를 그리는 기존 기법)를 일부만 그리는 현상 발생(사장이 스크린샷으로 제보: "오른쪽 파란 테두리 왼쪽이 사라짐"). `#7 좌우반전`과는 무관 — 순수하게 "박스 높이가 바뀌는 이벤트" 자체가 트리거였음(좌우반전 없이 이름만 길게 해도 재현됨, DOM 삽입 순서·`elementFromPoint`·`::before` transition 개별 무력화 테스트로 원인 격리). **기존에 있던 코드**이고 이번에 새로 만든 게 아님 — 지금까지는 이름이 항상 한 줄로 잘려 박스 높이가 안 바뀌었기 때문에 드러나지 않았던 잠재 버그. `transition` 선언 제거로 해결.
+
+**검증 방법**: 로컬 dev 서버(`npm run dev`) + Playwright로 실제 브라우저에서 재현 → 수정 → 재현 스크린샷으로 확인(#1, #6, #7 모두 시각 확인 완료). #2는 로그인 필요한 Admin 화면이라 소스+배포 번들 문자열 검사로만 확인(직접 조작 테스트 못 함). #5(부저)는 오디오라 스크린샷 검증 불가.
+
+**교훈**: `npm run build` 통과 ≠ 실제 브라우저에서 의도대로 렌더링됨. 이번 세션부터 UI 변경은 로컬 dev + Playwright 실브라우저 확인을 기본 절차로 한다.
+
+### 0-H. 추가 발견 — 헤더 "GRIT LAB" 로고 화면 밖 넘침 (2026-08-24, 원래 7건과 무관한 기존 버그)
+
+사장이 헤더 스크린샷 제보: "GRIT LAB" 타이틀과 농구공이 크림색 헤더 바 위아래로 삐져나옴.
+
+**원인**: `Scoreboard.jsx:537` 타이틀 텍스트가 `fontSize: 84`(고정 px) 하드코딩. 이 텍스트를 담는 `.periodBadge`는 `position: absolute`라 `.header`의 실제 높이 계산에 전혀 기여하지 않음. `.header`의 실제 높이는 옆의 작은 아이콘 버튼들(약 40px)+패딩으로 결정되는데, 그게 84px보다 작아서 절대위치인 타이틀이 헤더 바 밖으로 삐져나옴. 이번 세션 변경과 무관한 기존 버그 — Admin.jsx는 이미 실제 로고 이미지(`10vh` 반응형)로 교체돼 있어 이 문제가 없었음.
+
+**수정 (사장 요청 — "유동적으로")**: 고정 min-height 패치 대신, CSS 변수 `--title-size: min(8vh, 84px)`로 타이틀 폰트 크기와 헤더 `min-height`(`calc(var(--title-size) + 48px)`)를 하나로 묶음 — 화면 크기가 어떻게 바뀌든 헤더가 항상 타이틀보다 넉넉하게 크도록 구조적으로 보장. Playwright로 일반 화면(900px 높이)과 극단적으로 낮은 화면(500px 높이) 둘 다 검증 — 후자에서 타이틀이 비례해서 축소되며 넘침 없음 확인.
+
+파일: `Scoreboard.jsx`, `scoreboard.module.css`
+
+### 0-I. 팀 테두리 기본색 변경 — 흰색/검정 (2026-08-24, 사장 요청)
+
+기존 기본값: 팀 A=보라/파랑 계열(`oklch(60% 0.20 255)`), 팀 B=주황/빨강 계열(`oklch(65% 0.21 38)`). → 팀 A=흰색(`#fff`), 팀 B=검정(`#222`)으로 변경. 흰색/검정은 이미 팔레트(`TEAM_COLORS`)에 있던 옵션이라 그 값 그대로 사용(일관성 유지).
+
+적용 범위: 사장 확인 — 공개 화면(`Scoreboard.jsx`, `makeDefaultGame()`의 기본값 + "새 경기" 리셋 둘 다 포함)과 Admin(`Admin.jsx`, 하드코딩된 색 2곳) 둘 다 적용.
+
+검증: Playwright 스크린샷으로 공개 화면 확인 완료(팀 A 흰색 테두리 선명, 팀 B 검정 테두리는 어두운 배경 위라 은은하게 보임 — 팔레트의 '검정' 옵션 자체가 원래 그런 톤). Admin.jsx는 로그인 필요해 소스 수정만(값 자체가 리터럴 문자열 교체라 위험도 낮음).
+
+**후속 수정 (같은 날)**: 사장이 검정 테두리가 배경에 묻혀 안 보인다고 재제보(스크린샷) → 팀 B를 순검정(`#222`) 대신 **밝은 회색(`#aaaaaa`)**으로 교체(무채색 컨셉 유지 + 가시성 확보안 — 이름 배경박스에 색 넣는 대안도 제시했으나 사장이 회색안 선택). `TEAM_COLORS` 팔레트에 `gray` 옵션 신규 추가. Playwright로 재검증 완료(뚜렷하게 잘 보임).
+
+파일: `Scoreboard.jsx`, `Admin.jsx`
+
+### 0-J. 팀명 배경 플레이트 색상 — 팀 B 흰바탕/검정글씨 (2026-08-24, 사장 요청)
+
+목적: 테두리 색만으로는 구분이 약해서, 팀명 플레이트 자체도 팀 A/B가 다르게 보이도록(대비를 통한 즉각적 구분).
+
+**Scoreboard.jsx(공개 화면)**: 팀 A는 기존 어두운 플레이트(`#0d111c`) 그대로 유지. 팀 B에만 `.teamNameRowLight`(흰 배경) + `.teamNameHugeLight`(검정 텍스트, 안쪽 글래스모피즘 배경 제거) 클래스 추가.
+
+**Admin.jsx(glab 스킨)**: 이 스킨은 애초에 팀명 플레이트 자체를 없앤 디자인(1422행, "글래스 플레이트 제거")이라 팀 B에만 플레이트를 다시 살리는 방식으로 적용 — `scoreboard.glab.module.css` 맨 끝(캐스케이드 최우선)에 동일한 이름의 `.teamNameRowLight`/`.teamNameHugeLight` 클래스를 별도로 정의(파일이 달라 클래스 공유 안 됨, 각 스킨에 맞게 각각 정의).
+
+검증: Playwright로 공개 화면에서 팀 B 흰 배경/검정 글씨 확인 + 직전에 고친 긴 이름 줄바꿈·테두리 렌더링 버그와 함께 회귀 테스트(부산해운대드래곤파이터클럽팀 — 2줄 줄바꿈 + 회색 테두리 완전하게 그려짐 둘 다 정상 확인).
+
+파일: `Scoreboard.jsx`, `scoreboard.module.css`, `Admin.jsx`, `scoreboard.glab.module.css`
+
+### 0-K. 팀 B 카드 전체 반전 (2026-08-24, 사장 요청 — "기획만" 논의 후 A안 채택)
+
+**배경**: 0-I/0-J로도 검정/회색 테두리·이름판만으로는 구분이 약하다는 피드백. 전체 배경색(네이비) 자체를 바꾸는 방안도 논의했으나 — 브랜드 컬러(로그인 페이지·헤더의 네이비+크림)를 깨뜨리고, "어두운 배경 위 어두운 팀색은 저대비"라는 근본 문제가 배경을 바꿔도 그대로라 기각. **팀 B 카드 전체를 흰색으로 반전**하는 방향(스포츠 중계의 "원정팀 반전" 관례)으로 사장이 결정.
+
+**적용 대상** (팀 B에만, 팀 A는 기존 어두운 카드 그대로):
+- `.teamBlock` 카드 배경 자체 → 흰색
+- 점수 숫자(`.scoreGiant`) → 검정 텍스트, 안쪽 어두운 글래스 배경 제거
+- 점수/파울 +·− 버튼(`.scoreBtnMicro`, 4곳) → 어두운 원+검정 아이콘으로 반전
+- 빈 파울점(`.foulIndicatorDot`) → 어두운 아웃라인으로 반전 (채워진 초록/빨강 점은 그대로 — `renderFoulDots(fouls, light)` 두 번째 인자로 제어)
+- 팔레트 아이콘(`.paletteBtn`, 공개 화면에만 존재 — Admin은 색상피커 없음) → 반전
+
+**구현 방식**: 각 요소마다 `*Light` 짝 클래스를 만들어 팀 B 요소에만 추가 (`${styles.X} ${styles.XLight}`). Admin.jsx(glab 스킨)는 애초에 여러 요소의 플레이트/배경을 제거한 미니멀 디자인이라 캐스케이드 지점이 여러 곳에 흩어져 있어, `scoreboard.glab.module.css` 맨 끝에 `Light` 클래스를 몰아서 정의(소스 순서로 캐스케이드 우선권 확보 + 일부 `!important`로 안전판).
+
+**검증**: Playwright로 공개 화면 전체 흐름 회귀 테스트 — 긴 이름(2줄 줄바꿈) + 파울 7개(초록 6+빨강 1, PENALTY 배지) + 빈 파울점 + 테두리 + 점수/버튼까지 전부 동시에 정상 렌더링 확인. Admin.jsx는 로그인 필요해 소스 검토만.
+
+파일: `Scoreboard.jsx`, `scoreboard.module.css`, `Admin.jsx`, `scoreboard.glab.module.css`
+
+### 0-L. 중앙·좌우 레이아웃 정렬 + 좁은 화면 깨짐 수정 (2026-08-24, 사장 요청 3건 동시 처리)
+
+**요청 3건**: ① GAME CLOCK·SHOT CLOCK 박스 크기가 서로 달라 불안정해 보임 ② 팀 A/B 박스 윗선이 안 맞음 ③ PENALTY 배지가 파울점과 겹침. 추가로 사장이 좁은 화면에서 "박스 크기가 고정돼 있어서 다 깨진다"고 실시간 제보.
+
+| # | 원인 | 수정 |
+|---|------|------|
+| ① | `.centerBlock`이 `align-items: center`라 GAME CLOCK/SHOT CLOCK이 각자 폰트 크기만큼만 폭을 가짐(서로 다름) | `align-items: stretch`로 변경 — 둘 중 더 넓은 쪽 기준으로 폭 통일 |
+| ② | `.main` 그리드가 `align-items: center`라 팀 A/B 박스 높이가 다르면(이름 줄바꿈 등) 짧은 쪽이 아래로 밀림 | `align-items: start`로 변경 — 항상 윗선 기준 정렬 |
+| ③ | `.penaltyBadge`가 `position:absolute; bottom:-15px`로 파울점 영역에 음수 오프셋 걸쳐 있었음 | absolute 제거, `margin-top:8px`로 일반 흐름에 배치 |
+| 좁은 화면 깨짐 | `.teamNameHuge`(이름판)에 `min-width:240px` 고정값 + `.teamNameRow`·`.teamNameHuge` 이중 패딩(24+32px)이 좁은 화면에서 텍스트 공간을 다 잡아먹고 옆 컬럼과 충돌 | `min-width` 제거(+`max-width:100%`), 패딩을 `clamp()`로 화면 크기 비례하게 변경 |
+
+**디버깅 노트 (중요)**: 파울 버튼을 빠르게 7연속 클릭하는 Playwright 자동화 시퀀스에서 팀 B 카드가 중앙 SHOT CLOCK 박스와 겹치는 것처럼 보이는 현상 발견 → `getBoundingClientRect()` 실측으로는 겹침이 전혀 없음(16px 간격) 확인 → `transition`, `backdrop-filter` 등 여러 가설 제거 시도 후에도 재현 → **완전히 새로 로드한 상태 및 "이름 1회 변경" 같은 실사용 패턴에서는 전혀 재현 안 됨** → Playwright/헤드리스 크로미움의 연속 상호작용 스크린샷 렌더링 아티팩트로 잠정 결론(실제 CSS 버그 아님). 실사용 시나리오(이름 변경 1회 + 파울 7개 클릭, 일반 대회당 클릭 페이스)는 정상 확인됨.
+
+**검증**: Playwright로 좁은 화면(820px)·넓은 화면(1600px) 양쪽에서 긴 이름 + 파울 7개(PENALTY) 조합 확인. Admin.jsx(glab 스킨)도 동일 구조라 같은 4개 수정 적용(align-items, min-width, penaltyBadge) — 로그인 필요해 소스 검토만.
+
+파일: `Scoreboard.jsx`, `scoreboard.module.css`, `scoreboard.glab.module.css` (Admin.jsx JSX 변경 없음, CSS만)
+
+### 0-M. 점수 숫자 플레이트 비율 불일치 수정 (2026-08-24, 사장 요청)
+
+**증상**: "팀 점수 비율이 검은팀 흰색팀 높이가 안 맞음". 측정해보니 실제 박스 크기(211×298px)·폰트(250px)·패딩 전부 동일 — 진짜 크기 차이는 없었음.
+
+**원인**: 0-K에서 `.scoreGiantLight`를 완전 투명(`background:transparent`)으로 만들어서, 팀 A(어두운 유리판 배경 있음)는 박스가 뚜렷이 보이고 팀 B(배경 없음)는 숫자가 허공에 떠 있는 것처럼 보임 — 그래서 "비율이 안 맞다"는 인상.
+
+**수정**: `.scoreGiantLight` 배경을 완전 투명 대신 옅은 회색 플레이트(`rgba(0,0,0,0.06)`)로 변경 — 팀 A의 어두운 플레이트와 톤만 반대일 뿐 같은 "박스 안에 숫자" 구조로 통일. glab 스킨(Admin.jsx)은 애초에 팀 A도 점수판 배경이 없는 디자인이라 이 문제 자체가 없어서 미변경.
+
+파일: `scoreboard.module.css`
+
+### 0-N. 실제 모바일·태블릿 폭 전수 점검 (2026-08-25, 사장 질문 — "모바일 태블릿 전부 비율 조정되는거지?")
+
+기존 테스트는 820~1600px 폭 위주였음 — 사장 질문 계기로 **실제 폰 폭(375px)**을 처음 테스트해보니 진짜로 깨졌음. 정직하게 보고 후 즉시 수정.
+
+| 폭×높이 | 기기 예시 | 발견된 문제 | 수정 |
+|---|---|---|---|
+| 375×667 | iPhone SE급 | 세로 모바일 미디어쿼리(`max-width:767px portrait`)가 컴포넌트 리팩터 이전 옛 클래스명(`.teamA`,`.score`,`.timerDisplay`,`.teamName`,`.newGameBtn`)을 가리키는 **죽은 코드**였음 — 사실상 미적용 상태로 데스크톱 3컬럼 그리드가 그대로 넘침 | 현재 클래스명(`.teamBlock`,`.scoreGiant`,`.timerGiant`,`.shotClockGiant`)으로 전면 재작성 + `grid-template-columns: 1fr` → `minmax(0,1fr)`(트랙이 내용물 때문에 안 늘어나도록) |
+| 375~768 전반 | 폰~좁은 태블릿 | `.headerLeft/.headerRight`의 `max-width: calc(50% - 320px)`가 640px보다 좁은 화면에서 **음수**가 돼 헤더 버튼이 사실상 사라짐(계산상 폭 0) | 퍼센트 기반(`max-width:40%`)으로 교체 — 항상 양수 |
+| 768×1024 | iPad 세로 | `.periodBadge`(헤더 타이틀) 고정 `width:600px` + `--title-size`가 `vh`만 반영(`min(8vh,84px)`)해서 세로로 긴 화면에서 폰트가 커져 헤더 우측 아이콘과 겹침 | `--title-size`에 `8vw` 상한 추가(`min(8vh,84px,8vw)`) + `.periodBadge` `width:min(600px,70vw)`로 폭도 같이 제한 |
+| 1180×820, 1280×900 등 | iPad 가로(CSS 파일 헤더에 명시된 우선 타겟) | 문제 없음 — 기존 0-L 수정으로 이미 커버됨 | — |
+
+**주의**: Admin.jsx(glab 스킨)는 헤더 버튼 calc 버그만 동일하게 있어 같이 수정. `.periodBadge`(로고 이미지 방식이라 이름은 같지만 다른 요소)는 이미 이전에 `width:auto; max-width:min(600px,50vw)`로 고쳐져 있었음 — 로그인 필요해 소스 확인만, 실기기 미검증.
+
+**검증**: Playwright로 375×667(폰 세로) / 768×1024(태블릿 세로) / 1180×820(아이패드 가로) 3개 폭 스크린샷 확인. 완전 검증은 아님 — 실제 iOS/Android 브라우저에서의 최종 확인 권장.
+
+파일: `Scoreboard.jsx`, `scoreboard.module.css`, `scoreboard.glab.module.css`
 
 ---
 

@@ -140,7 +140,8 @@ const TEAM_COLORS = [
     { id: 'blue',   css: 'oklch(50% 0.18 240)' },
     { id: 'green',  css: 'oklch(58% 0.22 145)' },
     { id: 'black',  css: '#222' },
-    { id: 'white',  css: '#fff' }
+    { id: 'white',  css: '#fff' },
+    { id: 'gray',   css: '#aaaaaa' }
 ];
 
 // 기본 로컬 경기 상태
@@ -151,8 +152,8 @@ const makeDefaultGame = () => ({
     team_b_score: 0,
     team_a_fouls: 0, team_a_timeouts: parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1,
     team_b_fouls: 0, team_b_timeouts: parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1,
-    team_a_color: TEAM_COLORS[0].css,
-    team_b_color: TEAM_COLORS[1].css,
+    team_a_color: TEAM_COLORS.find(c => c.id === 'white').css,
+    team_b_color: TEAM_COLORS.find(c => c.id === 'gray').css,
     period: 1,
     game_time: 600,   // 10분
     shot_clock: 12,   // 12초
@@ -389,7 +390,7 @@ export default function ThreeVThreeScoreboard() {
         handleScoreChange('B', 1);
     }, 400);
     // 팀 파울 렌더링 헬퍼 (초록/빨강 점)
-    const renderFoulDots = (fouls) => {
+    const renderFoulDots = (fouls, light) => {
         const dots = [];
         const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
@@ -401,7 +402,7 @@ export default function ThreeVThreeScoreboard() {
                 else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
                 else dotClass = styles.dotSevere;              // 10
             }
-            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
+            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${light ? styles.foulIndicatorDotLight : ''} ${dotClass}`} />);
         }
         return dots;
     };
@@ -526,7 +527,7 @@ export default function ThreeVThreeScoreboard() {
             {gameEnded && <div className={styles.endedOverlayGlow} />}
 
             {/* ── 헤더 ── */}
-            <header className={styles.header}>
+            <header className={styles.header} style={{ '--title-size': 'min(8vh, 84px, 8vw)' }}>
                 <div className={styles.headerLeft}>
                     <button className={styles.iconBtn} onClick={() => navigate('/')}>
                         <ArrowLeft size={20} />
@@ -534,7 +535,7 @@ export default function ThreeVThreeScoreboard() {
                 </div>
 
                 <div className={styles.periodBadge} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <span style={{ fontSize: 84, fontWeight: 900, color: '#111', fontFamily: 'Anton, sans-serif', letterSpacing: '0.08em', lineHeight: 1 }}>GRIT LAB 🏀</span>
+                    <span style={{ fontSize: 'var(--title-size)', fontWeight: 900, color: '#111', fontFamily: 'Anton, sans-serif', letterSpacing: '0.08em', lineHeight: 1 }}>GRIT LAB 🏀</span>
                 </div>
 
                 <div className={styles.headerRight}>
@@ -803,7 +804,7 @@ export default function ThreeVThreeScoreboard() {
 
                 {/* ── 팀 B ── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 0 : 2 }}>
-                <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_b_color }}>
+                <div className={`${styles.teamBlock} ${styles.teamBlockLight} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_b_color }}>
                     <div className={styles.teamHeaderRow}>
                         <div className={styles.teamNameWrap}>
                             {editingTeam === 'B' ? (
@@ -818,15 +819,15 @@ export default function ThreeVThreeScoreboard() {
                                     <button className={styles.nameConfirmBtn} onClick={handleTeamNameSave}><Check size={18} /></button>
                                 </div>
                             ) : (
-                                <div className={styles.teamNameRow} onClick={() => canControl && handleTeamNameEdit('B')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                    <h2 className={styles.teamNameHuge} style={{ '--name-len': Math.max(4, game.team_b_name.length) }}>{game.team_b_name}</h2>
+                                <div className={`${styles.teamNameRow} ${styles.teamNameRowLight}`} onClick={() => canControl && handleTeamNameEdit('B')} style={{ cursor: canControl ? 'pointer' : 'default' }}>
+                                    <h2 className={`${styles.teamNameHuge} ${styles.teamNameHugeLight}`} style={{ '--name-len': Math.max(4, game.team_b_name.length) }}>{game.team_b_name}</h2>
                                 </div>
                             )}
                             {bWins && gameEnded && <span className={styles.winTag}>WINNER 🏆</span>}
                         </div>
                         {canControl && (
                             <div className={styles.paletteWrap}>
-                                <button className={styles.paletteBtn} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'B' ? null : 'B'); }}>
+                                <button className={`${styles.paletteBtn} ${styles.paletteBtnLight}`} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'B' ? null : 'B'); }}>
                                     <Palette size={20} />
                                 </button>
                                 {showColorPicker === 'B' && (
@@ -842,14 +843,14 @@ export default function ThreeVThreeScoreboard() {
                     </div>
 
                     <div className={styles.scoreWrap}>
-                        <div className={`${styles.scoreGiant} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
+                        <div className={`${styles.scoreGiant} ${styles.scoreGiantLight} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
                              {...(canControl ? scoreBHandlers : {})}>
                             {game.team_b_score}
                         </div>
                         {canControl && (
                             <div className={styles.scoreControlsVertical}>
-                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', 1); }}><Plus size={18} /></button>
-                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', -1); }}><Minus size={18} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', 1); }}><Plus size={18} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', -1); }}><Minus size={18} /></button>
                             </div>
                         )}
                     </div>
@@ -858,13 +859,13 @@ export default function ThreeVThreeScoreboard() {
                         <div className={styles.foulLabel}>TEAM FOULS</div>
                         <div className={styles.foulControlsRow}>
                             {canControl && (
-                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: Math.max(0, prev.team_b_fouls - 1)})); }}><Minus size={14} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: Math.max(0, prev.team_b_fouls - 1)})); }}><Minus size={14} /></button>
                             )}
                             <div className={styles.foulDotsContainer} {...(canControl ? foulBHandlers : {})} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                {renderFoulDots(game.team_b_fouls)}
+                                {renderFoulDots(game.team_b_fouls, true)}
                             </div>
                             {canControl && (
-                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: prev.team_b_fouls + 1})); }}><Plus size={14} /></button>
+                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: prev.team_b_fouls + 1})); }}><Plus size={14} /></button>
                             )}
                         </div>
                         {game.team_b_fouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}

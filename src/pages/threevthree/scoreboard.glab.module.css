@@ -279,7 +279,8 @@
     align-items: center;
     gap: 20px;
     flex: 1;
-    max-width: calc(50% - 320px); /* Leave 640px center space for the huge logo */
+    /* calc(50% - 320px) 제거(2026-08-25): 좁은 화면에서 음수가 돼 버튼이 사라지던 버그 */
+    max-width: 40%;
 }
 .headerRight { justify-content: flex-end; }
 
@@ -396,7 +397,8 @@
     z-index: 5;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
+    /* start(2026-08-24, 사장 요청): 팀 A/B 박스 높이가 달라도 윗선이 항상 맞춰지도록 */
+    align-items: start;
     padding: 0 24px;
     gap: 12px;
 }
@@ -422,7 +424,8 @@
     inset: 4px;
     border-radius: 20px;
     border: 1px solid transparent;
-    transition: border-color 0.4s, background 0.4s;
+    /* transition 제거 (2026-08-24): 팀명 줄바꿈으로 박스 높이가 바뀌는 순간
+       이 트랜지션이 걸려있으면 브라우저가 테두리를 일부만 그리는 렌더링 버그 발생 */
     pointer-events: none;
     z-index: 0;
 }
@@ -581,7 +584,8 @@
 .centerBlock {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* stretch(2026-08-24, 사장 요청): GAME CLOCK·SHOT CLOCK 박스 폭을 서로 맞춤 */
+    align-items: stretch;
     gap: 12px;
     padding: 8px 4px;
 }
@@ -847,8 +851,8 @@
     }
     .teamNameHuge {
         font-size: clamp(14px, calc( 140px / var(--name-len, 4) * 1.2 ), 32px);
-        overflow-wrap: normal;
-        word-break: keep-all;
+        overflow-wrap: anywhere;
+        word-break: normal;
         overflow: hidden;
         min-width: unset;
         padding: 4px 12px;
@@ -943,8 +947,8 @@
    ══════════════════════════════════ */
 .teamNameHuge {
     font-size: clamp(24px, calc( 320px / var(--name-len, 4) * 1.1 ), 80px);
-    overflow-wrap: normal;
-    word-break: keep-all;
+    overflow-wrap: anywhere;
+    word-break: normal;
     overflow: hidden;
     font-weight: 900;
     font-style: italic;
@@ -962,7 +966,8 @@
     border-radius: 16px;
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    min-width: 240px;
+    /* min-width: 240px 고정값 제거(2026-08-24) — 좁은 화면에서 옆 컬럼과 겹치는 원인이었음 */
+    max-width: 100%;
 }
 .scoreGiant {
     font-size: clamp(120px, 22vw, 250px);
@@ -1285,8 +1290,8 @@
     padding: 4px 10px;
     border-radius: 6px;
     letter-spacing: 0.1em;
-    position: absolute;
-    bottom: -15px;
+    /* absolute+bottom:-15px 제거(2026-08-24) — 파울점과 겹치는 원인이었음 */
+    margin-top: 8px;
 }
 
 
@@ -1524,4 +1529,33 @@
 @keyframes intermissionGroupFade {
   from { opacity: 0; transform: translateY(1.5vh); }
   to   { opacity: 1; transform: none; }
+}
+
+/* ── 팀 B 기본 배색(2026-08-24, 사장 요청) — 이 스킨은 팀명 플레이트를 없앴으므로(1422행)
+   팀 B에만 흰 플레이트를 다시 살려서 팀 A(플레이트 없음)와 대비, 한눈에 구분되도록 ── */
+.teamNameRowLight {
+    background: #fff;
+    border-radius: 12px;
+    padding: 4px 20px;
+}
+.teamNameHugeLight {
+    background: transparent;
+    color: #111;
+}
+
+/* ── 팀 B 카드 전체 반전(2026-08-24, 사장 요청) — 검정/회색 테두리가 어두운 배경에 묻히는 문제를
+   카드 자체를 흰색으로 뒤집어서 해결. scoreboard.module.css와 동일 컨셉, 이 스킨 값에 맞춰 재정의 ── */
+.teamBlockLight {
+    background: #fff;
+}
+.scoreGiantLight {
+    color: #111;
+}
+.scoreBtnMicroLight {
+    background: rgba(0,0,0,0.06) !important;
+    color: #111 !important;
+    border-color: rgba(0,0,0,0.15) !important;
+}
+.foulIndicatorDotLight {
+    background: rgba(0,0,0,0.12) !important;
 }
