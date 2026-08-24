@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import styles from './scoreboard.module.css';
-import { ChevronUp, ChevronDown, ArrowLeft, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, ArrowLeft, ArrowLeftRight, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing, ChevronsUp, ChevronsDown } from 'lucide-react';
 
 // ────────────────────────────────────────
 // 커스텀 훅: 롱프레스(Long Press) 감지기
@@ -95,8 +95,14 @@ let _shotBuf = null;
 
 const ensureCtx = () => {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
     return _audioCtx;
+};
+
+// 브라우저가 유휴 상태에서 AudioContext를 자동 suspend 시키는 경우, resume()이 끝나기 전에
+// start(0)을 호출하면 실제 소리 시작이 resume 완료까지 밀림(부저 지연 원인). 미리 깨워둠.
+export const wakeCtx = () => {
+    const ctx = ensureCtx();
+    if (ctx.state === 'suspended') ctx.resume();
 };
 
 const loadBuf = async (url) => {
@@ -114,9 +120,10 @@ export const initBuzzers = async () => {
     ]);
 };
 
-const playBuf = (buf) => {
+const playBuf = async (buf) => {
     if (!buf) return;
     const ctx = ensureCtx();
+    if (ctx.state === 'suspended') await ctx.resume(); // resume 완료를 기다린 후 재생 — 지연 방지
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
@@ -161,7 +168,9 @@ export default function ThreeVThreeScoreboard() {
     const [session, setSession]     = useState(null);
     const [sessions, setSessions]   = useState([]);
     const [isAdmin, setIsAdmin]     = useState(false);
-    const [dbReady, setDbReady]     = useState(false);  
+    const [dbReady, setDbReady]     = useState(false);
+    // 팀 좌우 화면 표시 반전 — team_a/team_b 데이터·키보드 매핑은 그대로, 화면 위치만 스왑 (새로고침 시 초기화, 로컬 상태)
+    const [sidesSwapped, setSidesSwapped] = useState(false);
 
     // ── UI 상태 ──
     const [showSetup, setShowSetup]     = useState(false);
@@ -288,6 +297,7 @@ export default function ThreeVThreeScoreboard() {
     // ── 로컬 타이머 (50ms 간격 → 1/10초 정밀도) ──
     useEffect(() => {
         if (timerRunning) {
+            wakeCtx(); // 클락 시작 시점에 미리 깨워서 종료 부저(0초) 시점 resume 지연을 방지
             let lastUpdate = Date.now();
             timerRef.current = setInterval(() => {
                 const now = Date.now();
@@ -530,6 +540,9 @@ export default function ThreeVThreeScoreboard() {
                 <div className={styles.headerRight}>
                     {canControl && (
                         <>
+                            <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} title="팀 좌우 화면 반전">
+                                <ArrowLeftRight size={20} />
+                            </button>
                             <button className={styles.iconBtn} onClick={playBuzzerGame} title="수동 부저">
                                 <BellRing size={20} />
                             </button>
@@ -550,7 +563,7 @@ export default function ThreeVThreeScoreboard() {
             <main className={styles.main}>
 
                 {/* ── 팀 A ── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 2 : 0 }}>
                 <div className={`${styles.teamBlock} ${aWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_a_color }}>
                     <div className={styles.teamHeaderRow}>
                         <div className={styles.teamNameWrap}>
@@ -630,8 +643,8 @@ export default function ThreeVThreeScoreboard() {
                 </div>
                 </div>
 
-                {/* ── 중앙: 타이머 & 샷클락 ── */}
-                <div className={styles.centerBlock}>
+                {/* ── 중앙: 타이머 & 샷클락 (좌우 반전 시에도 항상 가운데) ── */}
+                <div className={styles.centerBlock} style={{ order: 1 }}>
                     {/* 게임클락 */}
                     <div className={styles.timerGroup}>
                         <p className={styles.timerLabel}>GAME CLOCK</p>
@@ -789,7 +802,7 @@ export default function ThreeVThreeScoreboard() {
                 </div>
 
                 {/* ── 팀 B ── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24, order: sidesSwapped ? 0 : 2 }}>
                 <div className={`${styles.teamBlock} ${bWins && gameEnded ? styles.winner : ''}`} style={{ '--team-color': game.team_b_color }}>
                     <div className={styles.teamHeaderRow}>
                         <div className={styles.teamNameWrap}>

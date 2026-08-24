@@ -38,9 +38,9 @@ const COMMON_LEGEND = [
     { caps: ['F'], text: '샷클락 정지 / 재개' },
     { caps: ['R'], text: '게임클락 10:00 리셋' },
     { caps: ['B'], text: '수동 부저' },
-    { caps: ['↑', '↓'], text: '게임클락  +1 / −1초' },
     { caps: ['←', '→'], text: '샷클락  +1 / −1초' },
 ];
+// 게임클락 ±1초 단축키(↑↓)는 제거됨 — 게임클락 미세조정은 마우스(시간편집 모달)로만 (사장 요청 2026-08-20)
 
 const isHighlighted = (k) => k in TEAM || COMMON_KEYS.has(k);
 
@@ -219,16 +219,12 @@ export default function KeyboardGuide({ onClose }) {
                                 {row.map((k) => renderKey(k))}
                             </div>
                         ))}
-                        {/* 4행: Space + 방향키 */}
+                        {/* 4행: Space + 샷클락 좌우키 (게임클락 ↑↓은 제거됨) */}
                         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', marginTop: 2 }}>
                             {renderKey('Space', { minWidth: 250 })}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
-                                {renderKey('↑', { minWidth: 38, height: 36 })}
-                                <div style={{ display: 'flex', gap: 5 }}>
-                                    {renderKey('←', { minWidth: 38, height: 36 })}
-                                    {renderKey('↓', { minWidth: 38, height: 36 })}
-                                    {renderKey('→', { minWidth: 38, height: 36 })}
-                                </div>
+                            <div style={{ display: 'flex', gap: 5 }}>
+                                {renderKey('←', { minWidth: 38, height: 36 })}
+                                {renderKey('→', { minWidth: 38, height: 36 })}
                             </div>
                         </div>
                     </div>
