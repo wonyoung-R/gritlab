@@ -841,13 +841,23 @@
       <h4 style="margin:0 0 10px;text-align:center;font-size:13px;letter-spacing:.14em;color:#8ea0c2;font-weight:800">공통 · 양손</h4>
       <div class="kbm-rows">
         <div class="kbm-row"><span class="kbm-key">Space</span><span class="kbm-act">게임클락 시작 / 정지</span></div>
-        <div class="kbm-row"><span class="kbm-key">R</span><span class="kbm-act">게임클락 10:00 리셋</span></div>
-        <div class="kbm-row"><span class="kbm-key">↑</span><span class="kbm-key">↓</span><span class="kbm-act">게임클락 ±1초</span></div>
         <div class="kbm-row"><span class="kbm-key">J</span><span class="kbm-act">샷클락 12초 리셋 + 재개</span></div>
         <div class="kbm-row"><span class="kbm-key">F</span><span class="kbm-act">샷클락 정지 / 재개</span></div>
         <div class="kbm-row"><span class="kbm-key">←</span><span class="kbm-key">→</span><span class="kbm-act">샷클락 ±1초</span></div>
         <div class="kbm-row"><span class="kbm-key">B</span><span class="kbm-act">수동 부저</span></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 커스텀 확인 입력창 — window.prompt() 대체 (설치형 PWA 창에서 prompt() 미지원 대응) -->
+<div id="cpModal" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(7,9,14,0.9);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px">
+  <div class="kbm-card" style="max-width:420px;text-align:center">
+    <div id="cpMessage" style="white-space:pre-wrap;font-size:14px;line-height:1.6;margin-bottom:16px"></div>
+    <input id="cpInput" class="field" style="width:100%;box-sizing:border-box;margin-bottom:16px" autocomplete="off">
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="cpCancel" class="btn ghost">Cancel</button>
+      <button id="cpOk" class="btn btn-green">OK</button>
     </div>
   </div>
 </div>
@@ -894,6 +904,36 @@ const roundLabel = r => ROUND_LABELS[r] || r;
 function openKbdImg(){ document.getElementById('kbdImgModal').style.display = 'flex'; }
 function closeKbdImg(){ document.getElementById('kbdImgModal').style.display = 'none'; }
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeKbdImg(); });
+
+/* ===========================================================
+   커스텀 확인 입력창 — window.prompt() 대체
+   설치형 PWA(독립 앱 창)에서는 confirm()은 되지만 prompt()가
+   조용히 무시되는 경우가 있어(2026-08-27 발견) 직접 구현으로 대체.
+   =========================================================== */
+function customPrompt(message){
+  return new Promise((resolve) => {
+    const modal = document.getElementById('cpModal');
+    const msgEl = document.getElementById('cpMessage');
+    const inputEl = document.getElementById('cpInput');
+    msgEl.textContent = message;
+    inputEl.value = '';
+    modal.style.display = 'flex';
+    inputEl.focus();
+
+    const cleanup = (result) => {
+      modal.style.display = 'none';
+      inputEl.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    };
+    const onKeydown = (e) => {
+      if(e.key === 'Enter') cleanup(inputEl.value);
+      if(e.key === 'Escape') cleanup(null);
+    };
+    inputEl.addEventListener('keydown', onKeydown);
+    document.getElementById('cpOk').onclick = () => cleanup(inputEl.value);
+    document.getElementById('cpCancel').onclick = () => cleanup(null);
+  });
+}
 
 function showView(view){
   document.getElementById('viewTournaments').classList.toggle('hidden', view !== 'tournaments');
@@ -954,8 +994,9 @@ async function createTournament(){
 }
 
 async function toggleTournamentStatus(id){
-  const t = TOURNAMENTS.find(x => x.id === id);
-  if(!t) return;
+  // deleteTournament와 동일 버그(문자열 vs 숫자 id 비교) — 2026-08-27 파급 점검으로 발견, 문자열 비교로 통일
+  const t = TOURNAMENTS.find(x => String(x.id) === String(id));
+  if(!t){ alert('대회 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.'); return; }
   const newStatus = t.status === 'ACTIVE' ? 'ENDED' : 'ACTIVE';
   const { error } = await sb.from('tournaments').update({ status: newStatus }).eq('id', id);
   if(error){ alert('상태 변경 실패: ' + error.message); return; }
@@ -968,8 +1009,10 @@ async function toggleTournamentStatus(id){
    대회 삭제 — 영구 삭제 (LIVE+기록 차단 → 2단계 확인 → brackets→tournament 순)
    =========================================================== */
 async function deleteTournament(id){
-  const t = TOURNAMENTS.find(x => x.id === id);
-  if(!t) return;
+  // onclick="deleteTournament('${t.id}')"는 항상 문자열을 넘기는데 TOURNAMENTS[].id는
+  // Supabase에서 온 숫자라 === 비교가 항상 false였음(버그, 2026-08-27 발견) — 문자열 비교로 통일
+  const t = TOURNAMENTS.find(x => String(x.id) === String(id));
+  if(!t){ alert('대회 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.'); return; }
 
   const { count, error: cntErr } = await sb
     .from('game_3v3_brackets')
@@ -988,7 +1031,9 @@ async function deleteTournament(id){
   if(!confirm(`"${t.title}"\n\n경기 기록 ${games}개를 포함해 영구 삭제됩니다.\n복구할 수 없습니다. 계속할까요?`)) return;
 
   // 2단계: 대회 이름 직접 입력으로 확정
-  const typed = prompt(`삭제를 확정하려면 대회 이름을 정확히 입력하세요:\n\n${t.title}`);
+  // 설치형 PWA 창에서 window.prompt()가 조용히 무시되는 경우가 있어(2026-08-27 발견)
+  // 페이지 내장 커스텀 모달(customPrompt)로 대체 — confirm()은 정상 동작 확인됨
+  const typed = await customPrompt(`삭제를 확정하려면 대회 이름을 정확히 입력하세요:\n\n${t.title}`);
   if(typed === null) return;
   if(typed.trim() !== t.title){ alert('대회 이름이 일치하지 않아 삭제를 취소했습니다.'); return; }
 
@@ -1315,8 +1360,9 @@ function bindBuilderToTournament(t){
 
 // ACTIVE 대회를 빌더로 불러오기 (이어서 작성)
 async function resumeInBuilder(id){
-  const t = TOURNAMENTS.find(x => x.id === id);
-  if(!t) return;
+  // deleteTournament와 동일 버그(문자열 vs 숫자 id 비교) — 2026-08-27 파급 점검으로 발견, 문자열 비교로 통일
+  const t = TOURNAMENTS.find(x => String(x.id) === String(id));
+  if(!t){ alert('대회 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.'); return; }
   const { data, error } = await sb
     .from('game_3v3_brackets')
     .select('*')
