@@ -132,13 +132,17 @@ const statusColor = (s) => {
 
 const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
-    const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60);
     if (t < 60 && t > 0) {
         // 1분 미만: SS.x 형식 (0.1초 단위 표시)
+        const s = Math.floor(t);
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${s.toString().padStart(2, '0')}.${tenths}`;
     }
+    // ceil 사용(2026-08-27, 사장 제보) — formatShotClock(아래)과 동일 이유:
+    // floor면 리셋/시작 직후 실제 1초가 지나기도 전에 표시가 한 칸 내려가 버림
+    const wholeSecs = Math.ceil(t);
+    const m = Math.floor(wholeSecs / 60);
+    const s = wholeSecs % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
@@ -941,7 +945,7 @@ export default function ThreeVThreeAdmin() {
         window.location.href = '/tournament.html';
     };
 
-    const renderFoulDots = (fouls, light) => {
+    const renderFoulDots = (fouls) => {
         const dots = [];
         const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
@@ -953,7 +957,7 @@ export default function ThreeVThreeAdmin() {
                 else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
                 else dotClass = styles.dotSevere;              // 10
             }
-            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${light ? styles.foulIndicatorDotLight : ''} ${dotClass}`} />);
+            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
         }
         return dots;
     };
@@ -1259,7 +1263,7 @@ export default function ThreeVThreeAdmin() {
                 {/* 헤더 */}
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        <button className={styles.iconBtn} onClick={closeLiveWithoutSave} title="경기 목록으로">
+                        <button className={styles.iconBtn} onClick={closeLiveWithoutSave} data-tooltip="경기 목록으로">
                             <ArrowLeft size={20} />
                         </button>
                         <button className={styles.iconBtn} onClick={() => navigateToMatch(prevMatch)} disabled={!prevMatch}
@@ -1285,22 +1289,22 @@ export default function ThreeVThreeAdmin() {
                     </div>
 
                     <div className={styles.headerRight}>
-                        <button className={styles.iconBtn} onClick={goDashboard} title="결과 대시보드로 (미저장 시 확인)">
+                        <button className={styles.iconBtn} onClick={goDashboard} data-tooltip="결과 대시보드로 (미저장 시 확인)">
                             <LayoutDashboard size={20} />
                         </button>
-                        <button className={styles.iconBtn} onClick={toggleFullscreen} title="전체화면 (TV 출력)">
+                        <button className={styles.iconBtn} onClick={toggleFullscreen} data-tooltip="전체화면 (TV 출력)">
                             <Maximize2 size={20} />
                         </button>
-                        <button className={styles.iconBtn} onClick={() => setShowKbdGuide(true)} title="키보드 조작 안내">
+                        <button className={styles.iconBtn} onClick={() => setShowKbdGuide(true)} data-tooltip="키보드 조작 안내">
                             <Keyboard size={20} />
                         </button>
-                        <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} title="팀 좌우 화면 반전">
+                        <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} data-tooltip="팀 좌우 화면 반전">
                             <ArrowLeftRight size={20} />
                         </button>
-                        <button className={styles.iconBtn} onClick={playBuzzer} title="수동 부저">
+                        <button className={styles.iconBtn} onClick={playBuzzer} data-tooltip="수동 부저">
                             <BellRing size={20} />
                         </button>
-                        <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={saveLiveAndClose} title="저장 & 종료">
+                        <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={saveLiveAndClose} data-tooltip="저장 & 종료">
                             <Save size={20} />
                         </button>
                     </div>
@@ -1445,24 +1449,24 @@ export default function ThreeVThreeAdmin() {
                         </div>
 
                         <div className={styles.scoreWrap}>
-                            <div className={`${styles.scoreGiant} ${styles.scoreGiantLight} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
+                            <div className={`${styles.scoreGiant} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
                                 onClick={() => setTeamBScore(s => s + 1)}>
                                 {teamBScore}
                             </div>
                             <div className={styles.scoreControlsVertical}>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => s + 1); }}><Plus size={18} /></button>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => Math.max(0, s - 1)); }}><Minus size={18} /></button>
+                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => s + 1); }}><Plus size={18} /></button>
+                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); setTeamBScore(s => Math.max(0, s - 1)); }}><Minus size={18} /></button>
                             </div>
                         </div>
 
                         <div className={styles.foulWrap}>
                             <div className={styles.foulLabel}>TEAM FOULS</div>
                             <div className={styles.foulControlsRow}>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => Math.max(0, f - 1)); }}><Minus size={14} /></button>
                                 <div className={styles.foulDotsContainer} onClick={() => setTeamBFouls(f => f + 1)} style={{ cursor: 'pointer' }}>
-                                    {renderFoulDots(teamBFouls, true)}
+                                    {renderFoulDots(teamBFouls)}
                                 </div>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => f + 1); }}><Plus size={14} /></button>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setTeamBFouls(f => f + 1); }}><Plus size={14} /></button>
                             </div>
                             {teamBFouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}
                         </div>

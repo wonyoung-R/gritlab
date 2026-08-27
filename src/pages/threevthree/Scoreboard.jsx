@@ -61,13 +61,17 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
 // ────────────────────────────────────────
 const formatTime = (totalSeconds) => {
     const t = Math.max(0, totalSeconds);
-    const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60);
     if (t < 60 && t > 0) {
         // 1분 미만: SS.x 형식 (0.1초 단위 표시)
+        const s = Math.floor(t);
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${s.toString().padStart(2, '0')}.${tenths}`;
     }
+    // ceil 사용(2026-08-27, 사장 제보): floor면 리셋/시작 직후 실제 1초가 지나기도 전에
+    // 표시가 한 칸 내려가 버림(예: 12→11이 순식간에 넘어감). 정수 초는 다 소진된 뒤에만 내려가야 함
+    const wholeSecs = Math.ceil(t);
+    const m = Math.floor(wholeSecs / 60);
+    const s = wholeSecs % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
@@ -78,7 +82,8 @@ const formatShotClock = (seconds) => {
         const tenths = Math.floor((Math.round(t * 10) % 10));
         return `${whole}.${tenths}`;
     }
-    return Math.floor(t).toString().padStart(2, '0');
+    // ceil 사용(2026-08-27, 사장 제보: "샷클락 12초 리셋후 1초가 날아가") — 위 formatTime과 동일 이유
+    return Math.ceil(t).toString().padStart(2, '0');
 };
 
 const TODAY_TITLE = () => {
@@ -390,7 +395,7 @@ export default function ThreeVThreeScoreboard() {
         handleScoreChange('B', 1);
     }, 400);
     // 팀 파울 렌더링 헬퍼 (초록/빨강 점)
-    const renderFoulDots = (fouls, light) => {
+    const renderFoulDots = (fouls) => {
         const dots = [];
         const maxDots = 10;
         for (let i = 0; i < maxDots; i++) {
@@ -402,7 +407,7 @@ export default function ThreeVThreeScoreboard() {
                 else if (i <= 8) dotClass = styles.dotPenalty; // 7-9
                 else dotClass = styles.dotSevere;              // 10
             }
-            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${light ? styles.foulIndicatorDotLight : ''} ${dotClass}`} />);
+            dots.push(<div key={i} className={`${styles.foulIndicatorDot} ${dotClass}`} />);
         }
         return dots;
     };
@@ -529,7 +534,7 @@ export default function ThreeVThreeScoreboard() {
             {/* ── 헤더 ── */}
             <header className={styles.header} style={{ '--title-size': 'min(8vh, 84px, 8vw)' }}>
                 <div className={styles.headerLeft}>
-                    <button className={styles.iconBtn} onClick={() => navigate('/')}>
+                    <button className={styles.iconBtn} onClick={() => navigate('/')} data-tooltip="뒤로가기">
                         <ArrowLeft size={20} />
                     </button>
                 </div>
@@ -541,19 +546,19 @@ export default function ThreeVThreeScoreboard() {
                 <div className={styles.headerRight}>
                     {canControl && (
                         <>
-                            <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} title="팀 좌우 화면 반전">
+                            <button className={styles.iconBtn} onClick={() => setSidesSwapped(s => !s)} data-tooltip="팀 좌우 화면 반전">
                                 <ArrowLeftRight size={20} />
                             </button>
-                            <button className={styles.iconBtn} onClick={playBuzzerGame} title="수동 부저">
+                            <button className={styles.iconBtn} onClick={playBuzzerGame} data-tooltip="수동 부저">
                                 <BellRing size={20} />
                             </button>
-                            <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult} title="결과 저장">
+                            <button className={`${styles.iconBtn} ${styles.saveBtn}`} onClick={handleSaveResult} data-tooltip="결과 저장">
                                 <Save size={20} />
                             </button>
                         </>
                     )}
                     {isAdmin && dbReady && (
-                        <button className={styles.iconBtn} onClick={() => setShowSetup(true)}>
+                        <button className={styles.iconBtn} onClick={() => setShowSetup(true)} data-tooltip="설정">
                             <Settings size={22} />
                         </button>
                     )}
@@ -822,7 +827,7 @@ export default function ThreeVThreeScoreboard() {
                         </div>
                         {canControl && (
                             <div className={styles.paletteWrap}>
-                                <button className={`${styles.paletteBtn} ${styles.paletteBtnLight}`} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'B' ? null : 'B'); }}>
+                                <button className={styles.paletteBtn} onClick={(e) => { e.stopPropagation(); setShowColorPicker(showColorPicker === 'B' ? null : 'B'); }}>
                                     <Palette size={20} />
                                 </button>
                                 {showColorPicker === 'B' && (
@@ -838,14 +843,14 @@ export default function ThreeVThreeScoreboard() {
                     </div>
 
                     <div className={styles.scoreWrap}>
-                        <div className={`${styles.scoreGiant} ${styles.scoreGiantLight} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
+                        <div className={`${styles.scoreGiant} ${timeIsLow && !timeIsZero ? styles.scorePulse : ''}`}
                              {...(canControl ? scoreBHandlers : {})}>
                             {game.team_b_score}
                         </div>
                         {canControl && (
                             <div className={styles.scoreControlsVertical}>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', 1); }}><Plus size={18} /></button>
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', -1); }}><Minus size={18} /></button>
+                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', 1); }}><Plus size={18} /></button>
+                                <button className={styles.scoreBtnMicro} onClick={(e) => { e.stopPropagation(); handleScoreChange('B', -1); }}><Minus size={18} /></button>
                             </div>
                         )}
                     </div>
@@ -854,13 +859,13 @@ export default function ThreeVThreeScoreboard() {
                         <div className={styles.foulLabel}>TEAM FOULS</div>
                         <div className={styles.foulControlsRow}>
                             {canControl && (
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: Math.max(0, prev.team_b_fouls - 1)})); }}><Minus size={14} /></button>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: Math.max(0, prev.team_b_fouls - 1)})); }}><Minus size={14} /></button>
                             )}
                             <div className={styles.foulDotsContainer} {...(canControl ? foulBHandlers : {})} style={{ cursor: canControl ? 'pointer' : 'default' }}>
-                                {renderFoulDots(game.team_b_fouls, true)}
+                                {renderFoulDots(game.team_b_fouls)}
                             </div>
                             {canControl && (
-                                <button className={`${styles.scoreBtnMicro} ${styles.scoreBtnMicroLight}`} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: prev.team_b_fouls + 1})); }}><Plus size={14} /></button>
+                                <button className={styles.scoreBtnMicro} style={{ width: 32, height: 32 }} onClick={(e) => { e.stopPropagation(); setGame(prev => ({...prev, team_b_fouls: prev.team_b_fouls + 1})); }}><Plus size={14} /></button>
                             )}
                         </div>
                         {game.team_b_fouls >= 7 && <div className={styles.penaltyBadge}>PENALTY</div>}

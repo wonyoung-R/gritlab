@@ -297,6 +297,28 @@
     transition: all 0.2s;
 }
 .iconBtn:hover { color: var(--sb-white); background: rgba(255,255,255,0.12); }
+/* 헤더 아이콘 버튼 툴팁(2026-08-27, scoreboard.module.css와 동일 컨셉) */
+.iconBtn[data-tooltip] { position: relative; }
+.iconBtn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: rgba(10,12,18,0.95);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s, transform 0.12s;
+    z-index: 50;
+}
+.iconBtn[data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .sessionLabel {
     display: flex;
@@ -399,7 +421,8 @@
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     /* start(2026-08-24, 사장 요청): 팀 A/B 박스 높이가 달라도 윗선이 항상 맞춰지도록 */
     align-items: start;
-    padding: 0 24px;
+    /* 상단 여백(2026-08-27, 사장 피드백 — scoreboard.module.css와 동일) */
+    padding: 24px 24px 0;
     gap: 12px;
 }
 
@@ -1549,19 +1572,8 @@
     color: #111;
 }
 
-/* ── 팀 B 카드 전체 반전(2026-08-24, 사장 요청) — 검정/회색 테두리가 어두운 배경에 묻히는 문제를
-   카드 자체를 흰색으로 뒤집어서 해결. scoreboard.module.css와 동일 컨셉, 이 스킨 값에 맞춰 재정의 ── */
+/* ── 팀 B 카드 배경(2026-08-27, 사장 피드백) — 카드 전체 반전은 되돌리고 투명 배경으로.
+   팀 구분은 위 팀명판(teamNameRowLight/teamNameHugeLight)만 반전해서 표시 ── */
 .teamBlockLight {
-    background: var(--glab-cream); /* 오프화이트(2026-08-27) */
-}
-.scoreGiantLight {
-    color: #111;
-}
-.scoreBtnMicroLight {
-    background: rgba(0,0,0,0.06) !important;
-    color: #111 !important;
-    border-color: rgba(0,0,0,0.15) !important;
-}
-.foulIndicatorDotLight {
-    background: rgba(0,0,0,0.12) !important;
+    background: transparent;
 }
