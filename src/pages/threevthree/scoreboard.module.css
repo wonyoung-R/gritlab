@@ -301,6 +301,28 @@
     transition: all 0.2s;
 }
 .iconBtn:hover { color: var(--sb-white); background: rgba(255,255,255,0.12); }
+/* 헤더 아이콘 버튼 툴팁(2026-08-27, 사장 피드백) — 네이티브 title의 느린 지연 대신 즉시 표시 */
+.iconBtn[data-tooltip] { position: relative; }
+.iconBtn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: rgba(10,12,18,0.95);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s, transform 0.12s;
+    z-index: 50;
+}
+.iconBtn[data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .sessionLabel {
     display: flex;
@@ -402,7 +424,8 @@
     /* start(2026-08-24, 사장 요청): 팀 A/B 이름 길이가 달라 박스 높이가 서로 다를 때도
        세 컬럼(팀A·중앙·팀B) 윗선이 항상 맞춰지도록 — center였을 때는 짧은 쪽이 아래로 밀렸음 */
     align-items: start;
-    padding: 0 24px;
+    /* 상단 여백(2026-08-27, 사장 피드백): 헤더 바로 아래 팀 블록이 붙어보이던 문제 */
+    padding: 24px 24px 0;
     gap: 12px;
 }
 
@@ -421,11 +444,10 @@
     position: relative;
     overflow: hidden;
 }
-/* 팀 B 카드 전체 반전(2026-08-24, 사장 요청) — 검정 테두리가 어두운 배경에 묻히는 문제를
-   카드 자체를 흰색으로 뒤집어서 해결. 아래 각 하위 요소도 짝을 이루는 Light 클래스로 반전 */
+/* 팀 B 카드 배경(2026-08-27, 사장 피드백) — 카드 전체 반전은 되돌리고 투명 배경으로.
+   팀 구분은 아래 팀명판(teamNameRowLight/teamNameHugeLight)만 반전해서 표시 */
 .teamBlockLight {
-    /* 순백(#fff) 대신 오프화이트(2026-08-27, 사장 요청 — 너무 하얗다) — 헤더에 이미 쓰는 브랜드 크림톤 재사용 */
-    background: #F0EADC;
+    background: transparent;
 }
 .teamBlock::before {
     content: '';
@@ -1027,15 +1049,6 @@
 .scoreGiant:active {
     transform: scale(0.95);
 }
-/* 팀 B 카드 반전 짝 — 점수판도 어두운 유리판 대신 투명 배경 + 검정 숫자 */
-.scoreGiantLight {
-    color: #111;
-    /* 완전透明이 아니라 옅은 플레이트를 둬서 팀 A(어두운 플레이트)와 시각적 비율을 맞춤(2026-08-24) */
-    background: rgba(0, 0, 0, 0.06);
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
 .scoreControlsVertical {
     display: flex;
     flex-direction: column;
@@ -1054,13 +1067,6 @@
     transition: all 0.1s;
 }
 .scoreBtnMicro:active { background: rgba(255,255,255,0.2); transform: scale(0.9); }
-/* 팀 B 카드 반전 짝 — 흰 배경 위에서 안 보이던 흰 아이콘/버튼을 반전 */
-.scoreBtnMicroLight {
-    background: rgba(0,0,0,0.06);
-    border-color: rgba(0,0,0,0.15);
-    color: #111;
-}
-.scoreBtnMicroLight:active { background: rgba(0,0,0,0.12); transform: scale(0.9); }
 
 .timerGroup, .shotClockGroup {
     display: flex;
@@ -1261,16 +1267,6 @@
     color: var(--sb-white);
     background: rgba(255,255,255,0.15);
 }
-/* 팀 B 카드 반전 짝 */
-.paletteBtnLight {
-    background: rgba(0,0,0,0.05);
-    border-color: rgba(0,0,0,0.15);
-    color: rgba(0,0,0,0.55);
-}
-.paletteBtnLight:hover {
-    color: #111;
-    background: rgba(0,0,0,0.1);
-}
 .airCommandPopup {
     position: absolute;
     top: 50px;
@@ -1378,12 +1374,6 @@
     background: rgba(255,255,255,0.12);
     transition: background 0.2s, box-shadow 0.2s;
     border: 1px solid rgba(255,255,255,0.3);
-}
-/* 팀 B 카드 반전 짝 — 빈 파울점(미채워짐)이 흰 배경에 묻히지 않도록.
-   채워진 점(dotActive 등)은 이 뒤에 별도 클래스로 덧씌워지므로 색은 그대로 유지됨 */
-.foulIndicatorDotLight {
-    background: rgba(0,0,0,0.1);
-    border: 1px solid rgba(0,0,0,0.25);
 }
 .dotActive {
     background: var(--sb-green);
