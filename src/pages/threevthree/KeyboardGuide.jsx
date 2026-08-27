@@ -31,15 +31,15 @@ const LEFT_KEYS = ['A', 'S', 'D', 'G', 'V'];
 const RIGHT_KEYS = [';', 'L', 'K', 'H', 'N'];
 
 // 공통 키: 키보드에서 하이라이트 + 하단 레전드로 설명
-const COMMON_KEYS = new Set(['R', 'F', 'J', 'B']);
+const COMMON_KEYS = new Set(['F', 'J', 'B']);
 const COMMON_LEGEND = [
     { caps: ['Space'], text: '게임클락 시작 / 정지' },
     { caps: ['J'], text: '샷클락 12초 리셋 + 재개' },
     { caps: ['F'], text: '샷클락 정지 / 재개' },
-    { caps: ['R'], text: '게임클락 10:00 리셋' },
     { caps: ['B'], text: '수동 부저' },
     { caps: ['←', '→'], text: '샷클락  +1 / −1초' },
 ];
+// 게임클락 10:00 리셋(구 R)은 완전 제거됨 — 사장 요청 2026-08-27
 // 게임클락 ±1초 단축키(↑↓)는 제거됨 — 게임클락 미세조정은 마우스(시간편집 모달)로만 (사장 요청 2026-08-20)
 
 const isHighlighted = (k) => k in TEAM || COMMON_KEYS.has(k);

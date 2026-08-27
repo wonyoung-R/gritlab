@@ -1540,7 +1540,7 @@
 /* ── 팀 B 기본 배색(2026-08-24, 사장 요청) — 이 스킨은 팀명 플레이트를 없앴으므로(1422행)
    팀 B에만 흰 플레이트를 다시 살려서 팀 A(플레이트 없음)와 대비, 한눈에 구분되도록 ── */
 .teamNameRowLight {
-    background: #fff;
+    background: var(--glab-cream); /* 오프화이트(2026-08-27, 사장 요청 — 순백은 너무 하얗다), 이 스킨 브랜드 크림톤 재사용 */
     border-radius: 12px;
     padding: 4px 20px;
 }
@@ -1552,7 +1552,7 @@
 /* ── 팀 B 카드 전체 반전(2026-08-24, 사장 요청) — 검정/회색 테두리가 어두운 배경에 묻히는 문제를
    카드 자체를 흰색으로 뒤집어서 해결. scoreboard.module.css와 동일 컨셉, 이 스킨 값에 맞춰 재정의 ── */
 .teamBlockLight {
-    background: #fff;
+    background: var(--glab-cream); /* 오프화이트(2026-08-27) */
 }
 .scoreGiantLight {
     color: #111;

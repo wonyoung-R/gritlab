@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import styles from './scoreboard.module.css';
-import { ChevronUp, ChevronDown, ArrowLeft, ArrowLeftRight, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, RotateCcw, Edit2, Check, X, Save, Palette, BellRing, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, ArrowLeft, ArrowLeftRight, Settings, Wifi, WifiOff, Plus, Minus, Play, Pause, Edit2, Check, X, Save, Palette, BellRing, ChevronsUp, ChevronsDown } from 'lucide-react';
 
 // ────────────────────────────────────────
 // 커스텀 훅: 롱프레스(Long Press) 감지기
@@ -731,12 +731,7 @@ export default function ThreeVThreeScoreboard() {
                                     </div>
                                 )
                             )}
-                            {canControl && (
-                                <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
-                                    onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGame(prev => ({...prev, game_time: 600})); }}>
-                                    <RotateCcw size={14} /> 10:00
-                                </button>
-                            )}
+                            {/* 게임클락 10:00 리셋 버튼 완전 제거됨 — 사장 요청 2026-08-27 */}
                         </div>
                     </div>
 
