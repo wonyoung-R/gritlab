@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useParams } from 'react-router-dom';
-import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, RotateCcw, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
+import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -252,6 +252,10 @@ export default function ThreeVThreeAdmin() {
     const [showKbdGuide, setShowKbdGuide] = useState(false); // 키보드 안내 오버레이 (대회당 1회)
     // 팀 좌우 화면 표시 반전 — team_a/team_b 데이터·키보드 매핑은 그대로, 화면 위치만 스왑 (새로고침 시 초기화, 로컬 상태)
     const [sidesSwapped, setSidesSwapped] = useState(false);
+    // ── 추가경기(조별예선 동률 타이브레이크 등) — round:'EXTRA'로 저장되어 순위/와일드카드 집계에서 자동 제외됨 ──
+    const [showExtraGameForm, setShowExtraGameForm] = useState(false);
+    const [extraTeamAName, setExtraTeamAName] = useState('');
+    const [extraTeamBName, setExtraTeamBName] = useState('');
     // ── 인터미션(경기 종료 후 다음 경기 안내 카운트다운) ──
     const [showIntermission, setShowIntermission] = useState(false);
     const [intermissionSec, setIntermissionSec] = useState(90);
@@ -408,9 +412,10 @@ export default function ThreeVThreeAdmin() {
     // 실제 경기에서 고개 들었다놨다 하며 누락되는 문제 해결: 손가락 감각만으로 조작
     // 왼손=A팀 / 오른손=B팀 / 가운데=공통. 바탕화면 Scoreboard.jsx에는 영향 없음(독립 컴포넌트)
     // 매핑 v2: 득점 A/;(+1) S/L(+2) D/K(-1) · 파울 G/H · 타임아웃 V/N
-    //          샷클락 J(리셋+재개) F(정지/재개 토글) · 게임클락 Space(시작/정지) R(리셋)
+    //          샷클락 J(리셋+재개) F(정지/재개 토글) · 게임클락 Space(시작/정지)
     //          부저 B · 시간 미세조정 방향키(←→ 샷클락)
     // 게임클락 ±1초 조정 단축키(↑↓)는 제거됨 — 게임클락 미세조정은 마우스(시간편집 모달)로만 (사장 요청 2026-08-20)
+    // 게임클락 10:00 리셋(구 R, 구 버튼)도 완전 제거됨 — 사장 요청 2026-08-27
     // ────────────────────────────────────────
     useEffect(() => {
         if (!liveMatch) return;     // 라이브 모드에서만 동작
@@ -469,10 +474,7 @@ export default function ThreeVThreeAdmin() {
                 case 'KeyF':      // 샷클락 정지/재개 토글 (게임클락과 독립)
                     setShotClockPaused(p => !p);
                     break;
-                case 'KeyR':      // 게임클락 10:00 리셋
-                    setTimerRunning(false);
-                    setGameTime(600);
-                    break;
+                // 게임클락 리셋(구 KeyR)은 완전 제거됨 — 사장 요청 2026-08-27
                 case 'KeyB':      // 수동 부저
                     playBuzzer();
                     break;
@@ -764,15 +766,34 @@ export default function ThreeVThreeAdmin() {
     };
 
     // ── 라이브 기록 시작 ──
-    const startLiveRecord = (match) => {
+    const startLiveRecord = (match, durationSec = 600) => {
         setLiveMatch(match);
         setTeamAScore(match.team_a_score || 0);
         setTeamBScore(match.team_b_score || 0);
         setTeamAFouls(0);
         setTeamBFouls(0);
-        setGameTime(600);
+        setGameTime(durationSec);
         setShotClock(12);
         setTimerRunning(false);
+    };
+
+    // ── 추가경기 생성 + 즉시 라이브 시작 (게임클락 3분 고정) ──
+    // round:'EXTRA'는 ROUNDS 탭에도 없고 GROUP_*/SEMI/FINAL도 아니라서
+    // standingRowsFor·maybeAutoFillBracket 양쪽 모두 자동으로 무시함(별도 예외처리 불필요).
+    const createAndStartExtraGame = async () => {
+        const a = extraTeamAName.trim(), b = extraTeamBName.trim();
+        if (!a || !b) { alert('두 팀 이름을 모두 입력하세요.'); return; }
+        if (!activeTournamentId) { alert('먼저 대회를 선택하세요.'); return; }
+        const { data, error } = await supabase.from('game_3v3_brackets').insert([{
+            tournament_id: activeTournamentId, round: 'EXTRA', match_order: 0,
+            team_a_name: a, team_b_name: b, team_a_score: 0, team_b_score: 0, status: 'PENDING',
+        }]).select().single();
+        if (error) { alert('추가경기 생성 실패: ' + error.message); return; }
+        setAllMatches(prev => [...prev, data]);
+        setShowExtraGameForm(false);
+        setExtraTeamAName('');
+        setExtraTeamBName('');
+        startLiveRecord(data, 180); // 3분
     };
 
     // ── 대회 페이지(tournament.html)에서 경기 클릭 → 자동 기록시작 ──
@@ -1213,7 +1234,7 @@ export default function ThreeVThreeAdmin() {
     //  라이브 스코어보드 (기존 전광판 디자인 재사용)
     // ═══════════════════════════════════
     if (liveMatch) {
-        const roundLabel = ROUNDS.find(r => r.id === liveMatch.round)?.label || liveMatch.round;
+        const roundLabel = liveMatch.round === 'EXTRA' ? '추가경기' : (ROUNDS.find(r => r.id === liveMatch.round)?.label || liveMatch.round);
         const timeIsLow  = gameTime > 0 && gameTime <= 30;
         const timeIsZero = gameTime <= 0;
         const gameEnded  = timerRunning ? false : timeIsZero && gameTime === 0 && teamAScore !== teamBScore; // 간단한 보호 장치
@@ -1349,10 +1370,7 @@ export default function ThreeVThreeAdmin() {
                                 >
                                     {formatTime(gameTime)}
                                 </div>
-                                <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)', padding: '6px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
-                                    onClick={(e) => { e.stopPropagation(); setTimerRunning(false); setGameTime(600); }}>
-                                    <RotateCcw size={14} /> 10:00
-                                </button>
+                                {/* 게임클락 10:00 리셋 버튼 완전 제거됨 — 사장 요청 2026-08-27 */}
                             </div>
                         </div>
 
@@ -1599,10 +1617,17 @@ export default function ThreeVThreeAdmin() {
                     <section className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4">
                         <div className="flex items-center justify-between">
                             <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">경기 관리</h2>
-                            <button onClick={handleAddMatch}
-                                className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
-                                <Plus size={14} /> 경기 추가
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowExtraGameForm(true)}
+                                    className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition"
+                                    title="조별 동률 등 타이브레이크용 — 3분 단판, 순위 집계에 반영 안 됨">
+                                    <Plus size={14} /> 추가경기 만들기
+                                </button>
+                                <button onClick={handleAddMatch}
+                                    className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition">
+                                    <Plus size={14} /> 경기 추가
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -1791,6 +1816,45 @@ export default function ThreeVThreeAdmin() {
                             </div>
                         </div>
                     </section>
+                )}
+
+                {/* 추가경기 만들기 — 조별 동률 타이브레이크 등. 3분 단판, round:'EXTRA'로 순위 집계 제외 */}
+                {showExtraGameForm && (
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                        onClick={() => setShowExtraGameForm(false)}>
+                        <div className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4 max-w-sm w-full"
+                            onClick={e => e.stopPropagation()}>
+                            <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">추가경기 만들기</h2>
+                            <p className="text-xs text-[#8ea0c2] leading-relaxed">
+                                조별 동률 타이브레이크 등 특수 경기용. 게임클락 3분 단판으로 시작되며,
+                                순위·와일드카드 집계에는 반영되지 않습니다.
+                            </p>
+                            <input
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                placeholder="팀 A 이름"
+                                value={extraTeamAName}
+                                onChange={e => setExtraTeamAName(e.target.value)}
+                                autoFocus
+                            />
+                            <input
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
+                                placeholder="팀 B 이름"
+                                value={extraTeamBName}
+                                onChange={e => setExtraTeamBName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && createAndStartExtraGame()}
+                            />
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowExtraGameForm(false)}
+                                    className="flex-1 bg-[#16243f] border-2 border-[#33456a] text-[#8ea0c2] hover:text-[#e9e1ca] px-4 py-3 tracking-wider transition">
+                                    취소
+                                </button>
+                                <button onClick={createAndStartExtraGame}
+                                    className="flex-1 bg-[#ee7c1b] hover:brightness-110 text-white px-4 py-3 flex items-center justify-center gap-2 tracking-wider transition">
+                                    <Play size={16} /> 3분 경기 시작
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

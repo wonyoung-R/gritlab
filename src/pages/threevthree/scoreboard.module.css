@@ -424,7 +424,8 @@
 /* 팀 B 카드 전체 반전(2026-08-24, 사장 요청) — 검정 테두리가 어두운 배경에 묻히는 문제를
    카드 자체를 흰색으로 뒤집어서 해결. 아래 각 하위 요소도 짝을 이루는 Light 클래스로 반전 */
 .teamBlockLight {
-    background: #fff;
+    /* 순백(#fff) 대신 오프화이트(2026-08-27, 사장 요청 — 너무 하얗다) — 헤더에 이미 쓰는 브랜드 크림톤 재사용 */
+    background: #F0EADC;
 }
 .teamBlock::before {
     content: '';
@@ -474,7 +475,7 @@
 }
 /* 팀 B 기본 배색(2026-08-24, 사장 요청) — 팀 A(어두운 배경)와 대비시켜 한눈에 구분되도록 */
 .teamNameRowLight {
-    background: #fff;
+    background: #F0EADC; /* 오프화이트(2026-08-27) */
 }
 .teamName {
     font-size: var(--sb-team-size);
