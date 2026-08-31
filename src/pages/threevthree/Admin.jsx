@@ -258,8 +258,11 @@ export default function ThreeVThreeAdmin() {
     const [sidesSwapped, setSidesSwapped] = useState(false);
     // ── 추가경기(조별예선 동률 타이브레이크 등) — round:'EXTRA'로 저장되어 순위/와일드카드 집계에서 자동 제외됨 ──
     const [showExtraGameForm, setShowExtraGameForm] = useState(false);
+    const [extraGameGroup, setExtraGameGroup] = useState('');       // 선택된 조(GROUP_A 등) — 팀 선택지의 출처
     const [extraTeamAName, setExtraTeamAName] = useState('');
     const [extraTeamBName, setExtraTeamBName] = useState('');
+    const [extraGameAutoNote, setExtraGameAutoNote] = useState(null); // 자동 감지로 열렸을 때만 안내 문구
+    const promptedTieGroupsRef = useRef(new Set()); // 이미 제안한 조 — 중복 팝업 방지
     // ── 인터미션(경기 종료 후 다음 경기 안내 카운트다운) ──
     const [showIntermission, setShowIntermission] = useState(false);
     const [intermissionSec, setIntermissionSec] = useState(90);
@@ -329,8 +332,12 @@ export default function ThreeVThreeAdmin() {
         const allData = data || [];
         setTournaments(allData);
 
-        if (urlTournamentId && allData.some(t => t.id === urlTournamentId)) {
-            setActiveTournamentId(urlTournamentId);
+        // useParams()의 urlTournamentId는 항상 문자열인데 tournaments.id는 Supabase에서 숫자로 온다
+        // (tournament.html deleteTournament와 동일 버그, 2026-08-30 발견) — 문자열 비교로 통일.
+        // 안 고치면 URL의 특정 대회 대신 allData[0](최신 생성 대회, 3v3 아닐 수도 있음)로 조용히 바뀜
+        const urlMatch = allData.find(t => String(t.id) === String(urlTournamentId));
+        if (urlTournamentId && urlMatch) {
+            setActiveTournamentId(urlMatch.id);
         } else if (allData.length > 0 && !activeTournamentId) {
             setActiveTournamentId(allData[0].id);
         }
@@ -572,6 +579,7 @@ export default function ThreeVThreeAdmin() {
         const next = allMatches.map(m => m.id === match.id ? { ...m, ...match, winner, status: winner ? 'ENDED' : m.status } : m);
         setAllMatches(next);
         maybeAutoFillBracket(next); // 마지막 예선/4강 종료 감지 → 대진 자동 완성
+        maybeSuggestExtraGame(next); // 조별 승수 동률 감지 → 추가경기 만들기 제안
         return true;
     };
 
@@ -767,6 +775,7 @@ export default function ThreeVThreeAdmin() {
         setAllMatches(next);
         setForfeitTarget(null);
         maybeAutoFillBracket(next); // 몰수패가 마지막 예선/4강 경기일 수 있음
+        maybeSuggestExtraGame(next); // 조별 승수 동률 감지 → 추가경기 만들기 제안
     };
 
     // ── 라이브 기록 시작 ──
@@ -781,12 +790,62 @@ export default function ThreeVThreeAdmin() {
         setTimerRunning(false);
     };
 
+    // ── 조별 동률 자동 감지 → 추가경기 만들기 팝업 제안 ──
+    // 3x3은 무승부가 없어 "승수 동률"이 곧 순위 미확정 상태. 조의 모든 경기가 끝났는데
+    // 최다승 팀이 정확히 2팀이면(3팀+ 동률은 애매해서 자동 제안 안 함) 타이브레이크를 제안.
+    // 같은 조는 세션당 1회만 제안(경기 저장마다 재호출되므로 promptedTieGroupsRef로 중복 방지).
+    const maybeSuggestExtraGame = (ms) => {
+        const groupRounds = [...new Set(ms.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))];
+        for (const round of groupRounds) {
+            if (promptedTieGroupsRef.current.has(round)) continue;
+            const games = ms.filter(m => m.round === round && m.team_a_name && m.team_b_name);
+            if (!games.length || !games.every(m => m.status === 'ENDED')) continue;
+            const rows = standingRowsFor(games);
+            const clearTie = rows.length >= 2 && rows[0].w === rows[1].w && (!rows[2] || rows[2].w < rows[1].w);
+            if (clearTie) {
+                promptedTieGroupsRef.current.add(round);
+                const label = ROUNDS.find(r => r.id === round)?.label || round;
+                openExtraGameForm(round, rows[0].name, rows[1].name,
+                    `${label}에서 ${rows[0].w}승 동률(${rows[0].name} · ${rows[1].name})이 발생했습니다. 타이브레이크 추가경기를 만드시겠습니까?`);
+                break; // 여러 조가 동시에 걸려도 한 번에 하나씩만 — 나머지는 다음 저장 때 확인
+            }
+        }
+    };
+
+    // 조에 속한 팀명 목록(추가경기 팀 선택지) — game_3v3_brackets에 별도 팀 테이블이 없어 해당 조 경기의 팀명에서 도출
+    const teamsInGroup = (round) => {
+        const names = new Set();
+        allMatches.filter(m => m.round === round).forEach(m => {
+            if (m.team_a_name) names.add(m.team_a_name);
+            if (m.team_b_name) names.add(m.team_b_name);
+        });
+        return [...names].sort();
+    };
+
+    const openExtraGameForm = (round = '', teamA = '', teamB = '', note = null) => {
+        const groups = [...new Set(allMatches.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))].sort();
+        setExtraGameGroup(round || groups[0] || '');
+        setExtraTeamAName(teamA);
+        setExtraTeamBName(teamB);
+        setExtraGameAutoNote(note);
+        setShowExtraGameForm(true);
+    };
+
+    const closeExtraGameForm = () => {
+        setShowExtraGameForm(false);
+        setExtraGameGroup('');
+        setExtraTeamAName('');
+        setExtraTeamBName('');
+        setExtraGameAutoNote(null);
+    };
+
     // ── 추가경기 생성 + 즉시 라이브 시작 (게임클락 3분 고정) ──
     // round:'EXTRA'는 ROUNDS 탭에도 없고 GROUP_*/SEMI/FINAL도 아니라서
     // standingRowsFor·maybeAutoFillBracket 양쪽 모두 자동으로 무시함(별도 예외처리 불필요).
     const createAndStartExtraGame = async () => {
         const a = extraTeamAName.trim(), b = extraTeamBName.trim();
-        if (!a || !b) { alert('두 팀 이름을 모두 입력하세요.'); return; }
+        if (!a || !b) { alert('두 팀을 모두 선택하세요.'); return; }
+        if (a === b) { alert('서로 다른 두 팀을 선택하세요.'); return; }
         if (!activeTournamentId) { alert('먼저 대회를 선택하세요.'); return; }
         const { data, error } = await supabase.from('game_3v3_brackets').insert([{
             tournament_id: activeTournamentId, round: 'EXTRA', match_order: 0,
@@ -794,9 +853,7 @@ export default function ThreeVThreeAdmin() {
         }]).select().single();
         if (error) { alert('추가경기 생성 실패: ' + error.message); return; }
         setAllMatches(prev => [...prev, data]);
-        setShowExtraGameForm(false);
-        setExtraTeamAName('');
-        setExtraTeamBName('');
+        closeExtraGameForm();
         startLiveRecord(data, 180); // 3분
     };
 
@@ -963,6 +1020,7 @@ export default function ThreeVThreeAdmin() {
     };
     const activeTournament = tournaments.find(t => t.id === activeTournamentId);
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
+    const groupRoundsAvailable = [...new Set(allMatches.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))].sort();
     const shotClockLow = shotClock > 0 && shotClock < 5;
 
     if (loading || !authed) {
@@ -1592,7 +1650,7 @@ export default function ThreeVThreeAdmin() {
                             <select
                                 className="w-full appearance-none bg-[#16243f] border-2 border-[#33456a] px-4 py-3 pr-10 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition cursor-pointer"
                                 value={activeTournamentId || ''}
-                                onChange={e => setActiveTournamentId(e.target.value)}
+                                onChange={e => setActiveTournamentId(Number(e.target.value))}
                             >
                                 {tournaments.map(t => (
                                     <option key={t.id} value={t.id} className="bg-[#16243f]">
@@ -1622,7 +1680,7 @@ export default function ThreeVThreeAdmin() {
                         <div className="flex items-center justify-between">
                             <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">경기 관리</h2>
                             <div className="flex gap-2">
-                                <button onClick={() => setShowExtraGameForm(true)}
+                                <button onClick={() => openExtraGameForm()}
                                     className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition"
                                     title="조별 동률 등 타이브레이크용 — 3분 단판, 순위 집계에 반영 안 됨">
                                     <Plus size={14} /> 추가경기 만들기
@@ -1825,30 +1883,58 @@ export default function ThreeVThreeAdmin() {
                 {/* 추가경기 만들기 — 조별 동률 타이브레이크 등. 3분 단판, round:'EXTRA'로 순위 집계 제외 */}
                 {showExtraGameForm && (
                     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-                        onClick={() => setShowExtraGameForm(false)}>
+                        onClick={closeExtraGameForm}>
                         <div className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4 max-w-sm w-full"
                             onClick={e => e.stopPropagation()}>
                             <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">추가경기 만들기</h2>
-                            <p className="text-xs text-[#8ea0c2] leading-relaxed">
-                                조별 동률 타이브레이크 등 특수 경기용. 게임클락 3분 단판으로 시작되며,
-                                순위·와일드카드 집계에는 반영되지 않습니다.
-                            </p>
-                            <input
-                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
-                                placeholder="팀 A 이름"
+                            {extraGameAutoNote ? (
+                                <p className="text-xs text-[#ee7c1b] leading-relaxed bg-[#ee7c1b]/10 border border-[#ee7c1b]/40 p-3">
+                                    ⚠️ {extraGameAutoNote}
+                                </p>
+                            ) : (
+                                <p className="text-xs text-[#8ea0c2] leading-relaxed">
+                                    조별 동률 타이브레이크 등 특수 경기용. 게임클락 3분 단판으로 시작되며,
+                                    순위·와일드카드 집계에는 반영되지 않습니다.
+                                </p>
+                            )}
+                            <div>
+                                <label className="text-xs text-[#8ea0c2] block mb-1">조 선택</label>
+                                <select
+                                    className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition"
+                                    value={extraGameGroup}
+                                    onChange={e => { setExtraGameGroup(e.target.value); setExtraTeamAName(''); setExtraTeamBName(''); }}
+                                    autoFocus
+                                >
+                                    <option value="" className="bg-[#16243f]">조를 선택하세요</option>
+                                    {groupRoundsAvailable.map(r => (
+                                        <option key={r} value={r} className="bg-[#16243f]">{ROUNDS.find(x => x.id === r)?.label || r}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <select
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-40"
                                 value={extraTeamAName}
                                 onChange={e => setExtraTeamAName(e.target.value)}
-                                autoFocus
-                            />
-                            <input
-                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
-                                placeholder="팀 B 이름"
+                                disabled={!extraGameGroup}
+                            >
+                                <option value="" className="bg-[#16243f]">팀 A 선택</option>
+                                {teamsInGroup(extraGameGroup).map(n => (
+                                    <option key={n} value={n} className="bg-[#16243f]" disabled={n === extraTeamBName}>{n}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-40"
                                 value={extraTeamBName}
                                 onChange={e => setExtraTeamBName(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && createAndStartExtraGame()}
-                            />
+                                disabled={!extraGameGroup}
+                            >
+                                <option value="" className="bg-[#16243f]">팀 B 선택</option>
+                                {teamsInGroup(extraGameGroup).map(n => (
+                                    <option key={n} value={n} className="bg-[#16243f]" disabled={n === extraTeamAName}>{n}</option>
+                                ))}
+                            </select>
                             <div className="flex gap-3">
-                                <button onClick={() => setShowExtraGameForm(false)}
+                                <button onClick={closeExtraGameForm}
                                     className="flex-1 bg-[#16243f] border-2 border-[#33456a] text-[#8ea0c2] hover:text-[#e9e1ca] px-4 py-3 tracking-wider transition">
                                     취소
                                 </button>
