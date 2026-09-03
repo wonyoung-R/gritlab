@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useParams } from 'react-router-dom';
 import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
+import { computePlayoffSeeding, standingRowsFor } from '../../lib/format-routing';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -47,6 +48,9 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
     };
 };
 
+// 팀당 작전타임 기본 개수 — 되돌리기(0 → 최대)와 새 경기 리셋이 같은 값을 쓰도록 한 곳에서 판단
+const defaultTimeouts = () => parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1;
+
 const ROUNDS = [
     { id: 'GROUP_A', label: '예선 A' },
     { id: 'GROUP_B', label: '예선 B' },
@@ -64,65 +68,9 @@ const byPlayOrder = (a, b) =>
     || (a.match_order - b.match_order)
     || a.round.localeCompare(b.round);
 
-// ── 4강 자동 시딩 (빌더 tournament.html computeQualification/buildBracket 이식 — 이름 기반) ──
-// 한 라운드(조)의 경기들 → 순위 행 (승수 → 득실차 → 다득점)
-const standingRowsFor = (games) => {
-    const stat = {};
-    games.forEach(m => {
-        const ensure = nm => (stat[nm] = stat[nm] || { name: nm, w: 0, l: 0, pf: 0, pa: 0 });
-        const A = ensure(m.team_a_name), B = ensure(m.team_b_name);
-        if (m.status !== 'ENDED') return;
-        const sa = m.team_a_score || 0, sb = m.team_b_score || 0;
-        A.pf += sa; A.pa += sb; B.pf += sb; B.pa += sa;
-        const aWon = m.winner ? m.winner === 'A_WIN' : sa > sb;
-        if (sa === sb && !m.winner) return;
-        if (aWon) { A.w++; B.l++; } else { B.w++; A.l++; }
-    });
-    return Object.values(stat).sort((x, y) => y.w - x.w || (y.pf - y.pa) - (x.pf - x.pa) || y.pf - x.pf);
-};
-
-// 진출 4팀 계산 + 4강 매치업 (1시드 vs 4시드 / 2 vs 3, 같은 조 회피)
-// 각 조 1위 자동 진출, 와일드카드(4−조수) = 2위들 비교: 득실차 → 다득점 → 최소실점.
-// 후보 경기 수가 다르면 경기당 평균으로 비교(공정성). 동률 경계는 결정적 선발 + needsDraw 플래그만.
-const computeSemiSeeding = (ms) => {
-    const groupGames = ms.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
-    const groupRounds = [...new Set(groupGames.map(m => m.round))].sort();
-    if (!groupRounds.length) return null;
-    const gs = groupRounds.map(r => standingRowsFor(groupGames.filter(m => m.round === r)));
-    const wrap = (row, gi, rank) => ({
-        name: row.name, group: groupRounds[gi], rank: rank + 1, via: rank === 0 ? 'win' : 'wc',
-        gp: row.w + row.l, diff: row.pf - row.pa, pf: row.pf, pa: row.pa,
-    });
-    const G = groupRounds.length;
-    let qualified, needsDraw = false;
-    if (G === 1) {
-        qualified = gs[0].slice(0, 4).map((r, i) => wrap(r, 0, i));
-    } else if (G >= 4) {
-        qualified = gs.map((rows, gi) => rows[0] && wrap(rows[0], gi, 0)).filter(Boolean).slice(0, 4);
-    } else {
-        const winners = gs.map((rows, gi) => rows[0] && wrap(rows[0], gi, 0)).filter(Boolean);
-        const slots = 4 - G;
-        const pool = [];
-        const maxSize = Math.max(...gs.map(s => s.length));
-        for (let rank = 1; pool.length < slots && rank < maxSize; rank++)
-            gs.forEach((rows, gi) => { if (rows[rank]) pool.push(wrap(rows[rank], gi, rank)); });
-        const perGame = new Set(pool.map(c => c.gp)).size > 1;
-        const met = c => { const n = c.gp || 1; return perGame ? [c.diff / n, c.pf / n, c.pa / n] : [c.diff, c.pf, c.pa]; };
-        pool.sort((a, b) => { const x = met(a), y = met(b); return (y[0] - x[0]) || (y[1] - x[1]) || (x[2] - y[2]); });
-        if (pool.length > slots) {
-            const eq = (x, y) => x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
-            needsDraw = eq(met(pool[slots - 1]), met(pool[slots]));
-        }
-        qualified = winners.concat(pool.slice(0, slots));
-    }
-    if (qualified.length < 4) return null; // 4강 고정 포맷 — 4팀 미만이면 자동 시딩하지 않음 (수동 편성 영역)
-    const q = qualified;
-    const semis = [[q[0], q[3]], [q[1], q[2]]];
-    if (semis[0][0].group === semis[0][1].group) { // 같은 조 회피 — 상대(하위 시드) 교환
-        const t = semis[0][1]; semis[0][1] = semis[1][1]; semis[1][1] = t;
-    }
-    return { semis, qualified, needsDraw };
-};
+// ── 본선 시딩 ──
+// 순위 계산·와일드카드·성적순 시딩(1v4/2v3)·조 1위 동률 보류는 src/lib/format-routing.js 로 이관(2026-09-03).
+// 기획 근거: Dev/format-routing-plan.md (R1~R7) · 골든 테스트: tests/format-routing.test.mjs (npm test)
 
 const statusColor = (s) => {
     if (s === 'ENDED') return '#d8302c'; // GRIT LAB red
@@ -249,8 +197,8 @@ export default function ThreeVThreeAdmin() {
     const [teamBScore, setTeamBScore] = useState(0);
     const [teamAFouls, setTeamAFouls] = useState(0);
     const [teamBFouls, setTeamBFouls] = useState(0);
-    const [teamATimeouts, setTeamATimeouts] = useState(parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1);
-    const [teamBTimeouts, setTeamBTimeouts] = useState(parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1);
+    const [teamATimeouts, setTeamATimeouts] = useState(defaultTimeouts());
+    const [teamBTimeouts, setTeamBTimeouts] = useState(defaultTimeouts());
     const shotClockLastTapRef = useRef(0);
     const [showEditTime, setShowEditTime] = useState(false);
     const [showKbdGuide, setShowKbdGuide] = useState(false); // 키보드 안내 오버레이 (대회당 1회)
@@ -258,8 +206,11 @@ export default function ThreeVThreeAdmin() {
     const [sidesSwapped, setSidesSwapped] = useState(false);
     // ── 추가경기(조별예선 동률 타이브레이크 등) — round:'EXTRA'로 저장되어 순위/와일드카드 집계에서 자동 제외됨 ──
     const [showExtraGameForm, setShowExtraGameForm] = useState(false);
+    const [extraGameGroup, setExtraGameGroup] = useState('');       // 선택된 조(GROUP_A 등) — 팀 선택지의 출처
     const [extraTeamAName, setExtraTeamAName] = useState('');
     const [extraTeamBName, setExtraTeamBName] = useState('');
+    const [extraGameAutoNote, setExtraGameAutoNote] = useState(null); // 자동 감지로 열렸을 때만 안내 문구
+    const promptedTieGroupsRef = useRef(new Set()); // 이미 제안한 조 — 중복 팝업 방지
     // ── 인터미션(경기 종료 후 다음 경기 안내 카운트다운) ──
     const [showIntermission, setShowIntermission] = useState(false);
     const [intermissionSec, setIntermissionSec] = useState(90);
@@ -268,6 +219,10 @@ export default function ThreeVThreeAdmin() {
     const [rotTick, setRotTick] = useState(0);  // 인터미션 조별 순환 1초 틱 — 조 인덱스(÷10)와 잔여초(10−%10)를 함께 파생
     // ── 대진 자동 완성 (예선 종료 → 4강 시딩) ──
     const [autoSemiInfo, setAutoSemiInfo] = useState(null); // {qualified, needsDraw} — 인터미션 브라켓 배지용
+    // 조 1위 승수 동률로 자동 시딩을 보류한 상태 — {rounds:[GROUP_A], names:{GROUP_A:[..]}} (R6)
+    const [seedingHold, setSeedingHold] = useState(null);
+    // 3팀 순환 동률을 득실차로 정렬했다는 안내 (차단 아님) — [{round, names, decidedBy}]
+    const [tieNotes, setTieNotes] = useState([]);
     const autoFillBusyRef = useRef(false);
     // ── 운영 모드: null=모드 선택 랜딩, 'select-tournament'=대회 선택, 'tournament'=전광판↔대기 사이클,
     //    'builder'=경기 목록 관리(전광판 Admin). ?manage=1 = tournament.html(관리자모드)에서 온 경로 — 게이트 생략
@@ -329,8 +284,12 @@ export default function ThreeVThreeAdmin() {
         const allData = data || [];
         setTournaments(allData);
 
-        if (urlTournamentId && allData.some(t => t.id === urlTournamentId)) {
-            setActiveTournamentId(urlTournamentId);
+        // useParams()의 urlTournamentId는 항상 문자열인데 tournaments.id는 Supabase에서 숫자로 온다
+        // (tournament.html deleteTournament와 동일 버그, 2026-08-30 발견) — 문자열 비교로 통일.
+        // 안 고치면 URL의 특정 대회 대신 allData[0](최신 생성 대회, 3v3 아닐 수도 있음)로 조용히 바뀜
+        const urlMatch = allData.find(t => String(t.id) === String(urlTournamentId));
+        if (urlTournamentId && urlMatch) {
+            setActiveTournamentId(urlMatch.id);
         } else if (allData.length > 0 && !activeTournamentId) {
             setActiveTournamentId(allData[0].id);
         }
@@ -352,7 +311,7 @@ export default function ThreeVThreeAdmin() {
 
     // ── 경기 목록 로드 ──
     useEffect(() => {
-        setAutoSemiInfo(null); // 대회 전환 시 자동시딩 배지 초기화
+        setAutoSemiInfo(null); setSeedingHold(null); setTieNotes([]); // 대회 전환 시 자동시딩 배지·보류/안내 초기화
         if (!activeTournamentId) { setMatches([]); setAllMatches([]); return; }
         fetchMatches();
     }, [activeTournamentId]);
@@ -463,8 +422,8 @@ export default function ThreeVThreeAdmin() {
                 case 'KeyH':      setTeamBFouls(f => f + 1); break;             // B팀 파울 +1
 
                 // ── 타임아웃 ──
-                case 'KeyV':      setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); break; // A팀
-                case 'KeyN':      setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); break; // B팀
+                case 'KeyV':      setTeamATimeouts(prev => prev <= 0 ? defaultTimeouts() : prev - 1); break; // A팀
+                case 'KeyN':      setTeamBTimeouts(prev => prev <= 0 ? defaultTimeouts() : prev - 1); break; // B팀
 
                 // ── 공통 / 클락 ──
                 case 'Space':     // 게임클락 시작/정지
@@ -572,6 +531,7 @@ export default function ThreeVThreeAdmin() {
         const next = allMatches.map(m => m.id === match.id ? { ...m, ...match, winner, status: winner ? 'ENDED' : m.status } : m);
         setAllMatches(next);
         maybeAutoFillBracket(next); // 마지막 예선/4강 종료 감지 → 대진 자동 완성
+        maybeSuggestExtraGame(next); // 조별 승수 동률 감지 → 추가경기 만들기 제안
         return true;
     };
 
@@ -584,36 +544,44 @@ export default function ThreeVThreeAdmin() {
             const groupGames = ms.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
             const semiRows = ms.filter(m => m.round === 'SEMI').sort((a, b) => a.match_order - b.match_order);
 
-            // 1) 예선 전부 종료 + SEMI 전부 비어있음 → 4강 시딩
-            if (groupGames.length && groupGames.every(m => m.status === 'ENDED')
-                && !semiRows.some(m => m.team_a_name || m.team_b_name)) {
-                const seeding = computeSemiSeeding(ms);
-                if (!seeding) return;
-                const written = [];
-                for (let i = 0; i < 2; i++) {
-                    const [a, b] = seeding.semis[i];
-                    const row = semiRows[i];
-                    if (row) {
-                        const fields = { team_a_name: a.name, team_b_name: b.name, updated_at: new Date().toISOString() };
-                        const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', row.id);
-                        if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
-                        written.push({ ...row, ...fields });
-                    } else {
-                        const { data, error } = await supabase.from('game_3v3_brackets').insert([{
-                            tournament_id: activeTournamentId, round: 'SEMI', match_order: i + 1,
-                            team_a_name: a.name, team_b_name: b.name,
-                            team_a_score: 0, team_b_score: 0, status: 'PENDING',
-                        }]).select().single();
-                        if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
-                        written.push(data);
+            // 1) 예선 전부 종료 → 조 1위 동률 확인 + (SEMI가 비어있으면) 4강 시딩
+            if (groupGames.length && groupGames.every(m => m.status === 'ENDED')) {
+                const seeding = computePlayoffSeeding(ms, { size: 4 });
+                // R6: 조 1위가 승수 동률이면 득실차로 임의 확정하지 않고 보류한다.
+                // 추가경기(EXTRA)가 저장되면 handleSaveMatch가 이 함수를 다시 불러 자동으로 풀린다.
+                // 보류 상태는 SEMI 편성 여부와 무관하게 갱신해야 배너가 해소 후 사라진다.
+                const holding = !!seeding?.pendingTies?.length;
+                setSeedingHold(holding ? { rounds: seeding.pendingTies, names: seeding.tiedNames || {}, kinds: seeding.tieKinds || {} } : null);
+                setTieNotes(seeding?.tieNotes || []);
+                if (holding) return;
+                // 이미 편성된 SEMI는 덮어쓰지 않는다(수동 편성 보호) — 아래 2)로 흘려보낸다
+                if (seeding && !semiRows.some(m => m.team_a_name || m.team_b_name)) {
+                    const written = [];
+                    for (let i = 0; i < 2; i++) {
+                        const [a, b] = seeding.semis[i];
+                        const row = semiRows[i];
+                        if (row) {
+                            const fields = { team_a_name: a.name, team_b_name: b.name, updated_at: new Date().toISOString() };
+                            const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', row.id);
+                            if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
+                            written.push({ ...row, ...fields });
+                        } else {
+                            const { data, error } = await supabase.from('game_3v3_brackets').insert([{
+                                tournament_id: activeTournamentId, round: 'SEMI', match_order: i + 1,
+                                team_a_name: a.name, team_b_name: b.name,
+                                team_a_score: 0, team_b_score: 0, status: 'PENDING',
+                            }]).select().single();
+                            if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
+                            written.push(data);
+                        }
                     }
+                    setAllMatches(prev => {
+                        const ids = new Set(written.map(w => w.id));
+                        return [...prev.filter(m => !ids.has(m.id)), ...written];
+                    });
+                    setAutoSemiInfo({ qualified: seeding.qualified, needsDraw: seeding.needsDraw });
+                    return;
                 }
-                setAllMatches(prev => {
-                    const ids = new Set(written.map(w => w.id));
-                    return [...prev.filter(m => !ids.has(m.id)), ...written];
-                });
-                setAutoSemiInfo({ qualified: seeding.qualified, needsDraw: seeding.needsDraw });
-                return;
             }
 
             // 2) 4강 2경기 전부 종료 + FINAL 비어있음 → 결승 매치업 채움
@@ -767,6 +735,7 @@ export default function ThreeVThreeAdmin() {
         setAllMatches(next);
         setForfeitTarget(null);
         maybeAutoFillBracket(next); // 몰수패가 마지막 예선/4강 경기일 수 있음
+        maybeSuggestExtraGame(next); // 조별 승수 동률 감지 → 추가경기 만들기 제안
     };
 
     // ── 라이브 기록 시작 ──
@@ -776,9 +745,61 @@ export default function ThreeVThreeAdmin() {
         setTeamBScore(match.team_b_score || 0);
         setTeamAFouls(0);
         setTeamBFouls(0);
+        // 작전타임도 새 경기마다 리셋 (2026-09-03 제보 — 파울만 리셋되고 작전타임은 이전 경기 값이 이월됐다)
+        setTeamATimeouts(defaultTimeouts());
+        setTeamBTimeouts(defaultTimeouts());
         setGameTime(durationSec);
         setShotClock(12);
         setTimerRunning(false);
+    };
+
+    // ── 조별 동률 자동 감지 → 추가경기 만들기 팝업 제안 ──
+    // 3x3은 무승부가 없어 "승수 동률"이 곧 순위 미확정 상태. 조의 모든 경기가 끝났는데
+    // 최다승 팀이 정확히 2팀이면(3팀+ 동률은 애매해서 자동 제안 안 함) 타이브레이크를 제안.
+    // 같은 조는 세션당 1회만 제안(경기 저장마다 재호출되므로 promptedTieGroupsRef로 중복 방지).
+    const maybeSuggestExtraGame = (ms) => {
+        const groupRounds = [...new Set(ms.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))];
+        for (const round of groupRounds) {
+            if (promptedTieGroupsRef.current.has(round)) continue;
+            const games = ms.filter(m => m.round === round && m.team_a_name && m.team_b_name);
+            if (!games.length || !games.every(m => m.status === 'ENDED')) continue;
+            const rows = standingRowsFor(games);
+            const clearTie = rows.length >= 2 && rows[0].w === rows[1].w && (!rows[2] || rows[2].w < rows[1].w);
+            if (clearTie) {
+                promptedTieGroupsRef.current.add(round);
+                const label = ROUNDS.find(r => r.id === round)?.label || round;
+                openExtraGameForm(round, rows[0].name, rows[1].name,
+                    `${label}에서 ${rows[0].w}승 동률(${rows[0].name} · ${rows[1].name})이 발생했습니다. 타이브레이크 추가경기를 만드시겠습니까?`);
+                break; // 여러 조가 동시에 걸려도 한 번에 하나씩만 — 나머지는 다음 저장 때 확인
+            }
+        }
+    };
+
+    // 조에 속한 팀명 목록(추가경기 팀 선택지) — game_3v3_brackets에 별도 팀 테이블이 없어 해당 조 경기의 팀명에서 도출
+    const teamsInGroup = (round) => {
+        const names = new Set();
+        allMatches.filter(m => m.round === round).forEach(m => {
+            if (m.team_a_name) names.add(m.team_a_name);
+            if (m.team_b_name) names.add(m.team_b_name);
+        });
+        return [...names].sort();
+    };
+
+    const openExtraGameForm = (round = '', teamA = '', teamB = '', note = null) => {
+        const groups = [...new Set(allMatches.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))].sort();
+        setExtraGameGroup(round || groups[0] || '');
+        setExtraTeamAName(teamA);
+        setExtraTeamBName(teamB);
+        setExtraGameAutoNote(note);
+        setShowExtraGameForm(true);
+    };
+
+    const closeExtraGameForm = () => {
+        setShowExtraGameForm(false);
+        setExtraGameGroup('');
+        setExtraTeamAName('');
+        setExtraTeamBName('');
+        setExtraGameAutoNote(null);
     };
 
     // ── 추가경기 생성 + 즉시 라이브 시작 (게임클락 3분 고정) ──
@@ -786,7 +807,8 @@ export default function ThreeVThreeAdmin() {
     // standingRowsFor·maybeAutoFillBracket 양쪽 모두 자동으로 무시함(별도 예외처리 불필요).
     const createAndStartExtraGame = async () => {
         const a = extraTeamAName.trim(), b = extraTeamBName.trim();
-        if (!a || !b) { alert('두 팀 이름을 모두 입력하세요.'); return; }
+        if (!a || !b) { alert('두 팀을 모두 선택하세요.'); return; }
+        if (a === b) { alert('서로 다른 두 팀을 선택하세요.'); return; }
         if (!activeTournamentId) { alert('먼저 대회를 선택하세요.'); return; }
         const { data, error } = await supabase.from('game_3v3_brackets').insert([{
             tournament_id: activeTournamentId, round: 'EXTRA', match_order: 0,
@@ -794,9 +816,7 @@ export default function ThreeVThreeAdmin() {
         }]).select().single();
         if (error) { alert('추가경기 생성 실패: ' + error.message); return; }
         setAllMatches(prev => [...prev, data]);
-        setShowExtraGameForm(false);
-        setExtraTeamAName('');
-        setExtraTeamBName('');
+        closeExtraGameForm();
         startLiveRecord(data, 180); // 3분
     };
 
@@ -963,6 +983,7 @@ export default function ThreeVThreeAdmin() {
     };
     const activeTournament = tournaments.find(t => t.id === activeTournamentId);
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
+    const groupRoundsAvailable = [...new Set(allMatches.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))].sort();
     const shotClockLow = shotClock > 0 && shotClock < 5;
 
     if (loading || !authed) {
@@ -1351,10 +1372,10 @@ export default function ThreeVThreeAdmin() {
                     </div>
                     {/* T.O OUTSIDE teamBlock */}
                     <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: 'pointer' }}
-                         onClick={(e) => { e.stopPropagation(); setTeamATimeouts(prev => prev === 0 ? 1 : prev - 1); }}>
+                         onClick={(e) => { e.stopPropagation(); setTeamATimeouts(prev => prev <= 0 ? defaultTimeouts() : prev - 1); }}>
                         <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>Timeout</span>
                         <div style={{ display: 'flex', gap: 8 }}>
-                            {[0].map(i => (
+                            {Array.from({ length: Math.max(1, defaultTimeouts()) }, (_, i) => (
                                 <div key={i} className={`${styles.timeoutBall} ${i >= teamATimeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
                             ))}
                         </div>
@@ -1473,10 +1494,10 @@ export default function ThreeVThreeAdmin() {
                     </div>
                     {/* T.O OUTSIDE teamBlock */}
                     <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: 'pointer' }}
-                         onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(prev => prev === 0 ? 1 : prev - 1); }}>
+                         onClick={(e) => { e.stopPropagation(); setTeamBTimeouts(prev => prev <= 0 ? defaultTimeouts() : prev - 1); }}>
                         <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>Timeout</span>
                         <div style={{ display: 'flex', gap: 8 }}>
-                            {[0].map(i => (
+                            {Array.from({ length: Math.max(1, defaultTimeouts()) }, (_, i) => (
                                 <div key={i} className={`${styles.timeoutBall} ${i >= teamBTimeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
                             ))}
                         </div>
@@ -1592,7 +1613,7 @@ export default function ThreeVThreeAdmin() {
                             <select
                                 className="w-full appearance-none bg-[#16243f] border-2 border-[#33456a] px-4 py-3 pr-10 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition cursor-pointer"
                                 value={activeTournamentId || ''}
-                                onChange={e => setActiveTournamentId(e.target.value)}
+                                onChange={e => setActiveTournamentId(Number(e.target.value))}
                             >
                                 {tournaments.map(t => (
                                     <option key={t.id} value={t.id} className="bg-[#16243f]">
@@ -1622,7 +1643,7 @@ export default function ThreeVThreeAdmin() {
                         <div className="flex items-center justify-between">
                             <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">경기 관리</h2>
                             <div className="flex gap-2">
-                                <button onClick={() => setShowExtraGameForm(true)}
+                                <button onClick={() => openExtraGameForm()}
                                     className="bg-[#16243f] hover:border-[#ee7c1b] border-2 border-[#33456a] text-[#e9e1ca] text-sm px-4 py-2 flex items-center gap-2 tracking-wider transition"
                                     title="조별 동률 등 타이브레이크용 — 3분 단판, 순위 집계에 반영 안 됨">
                                     <Plus size={14} /> 추가경기 만들기
@@ -1633,6 +1654,49 @@ export default function ThreeVThreeAdmin() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* R6 — 조 1위 승수 동률로 본선 시딩 보류 중. 득실차로 임의 확정하지 않는다는 사실을 운영자에게 알림 */}
+                        {seedingHold?.rounds?.length > 0 && (
+                            <div className="border-2 border-[#ee7c1b] bg-[#ee7c1b]/10 p-4 space-y-2">
+                                <div className="text-sm text-[#ee7c1b] font-bold">⚠️ 본선 대진 자동 생성 보류 중</div>
+                                {seedingHold.rounds.map(r => {
+                                    const label = ROUNDS.find(x => x.id === r)?.label || r;
+                                    const names = seedingHold.names?.[r] || [];
+                                    const twoWay = names.length === 2;
+                                    return (
+                                        <div key={r} className="flex items-center justify-between gap-3 flex-wrap">
+                                            <span className="text-xs text-[#e9e1ca]">
+                                                {label} 1위가 {names.length || 2}팀 승수 동률{names.length ? ` (${names.join(' · ')})` : ''} —
+                                                {twoWay ? ' 추가경기로 승자를 가리면 대진이 자동 생성됩니다.'
+                                                        : ' 득실차·득점까지 완전히 같아 순위를 정할 근거가 없습니다. 추가경기로 가리거나 4강 대진을 직접 입력하세요.'}
+                                            </span>
+                                            {twoWay && (
+                                                <button
+                                                    onClick={() => openExtraGameForm(r, names[0], names[1],
+                                                        `${label} 1위 동률(${names.join(' · ')})을 가리는 추가경기입니다.`)}
+                                                    className="bg-[#ee7c1b] hover:brightness-110 text-white text-xs px-3 py-2 flex items-center gap-2 tracking-wider transition shrink-0">
+                                                    <Plus size={12} /> 추가경기 만들기
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* 3팀 순환 동률을 득실차로 정렬한 경우 — 막지는 않고 근거만 알린다 (R6) */}
+                        {tieNotes.length > 0 && (
+                            <div className="border border-[#33456a] bg-[#16243f] p-3 space-y-1">
+                                {tieNotes.map(n => (
+                                    <div key={n.round} className="text-xs text-[#8ea0c2]">
+                                        ℹ️ {ROUNDS.find(x => x.id === n.round)?.label || n.round} 1위가 {n.names.length}팀 승수 동률
+                                        {n.names.length ? ` (${n.names.join(' · ')})` : ''} — 맞대결이 순환이라
+                                        <span className="text-[#e9e1ca]"> 득실차 → 다득점</span> 순으로 정렬했습니다.
+                                        다르게 정하시려면 추가경기를 만들거나 4강 대진을 직접 입력하세요.
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         <div className="flex gap-2 overflow-x-auto pb-2">
                             {ROUNDS.map(r => {
@@ -1825,30 +1889,58 @@ export default function ThreeVThreeAdmin() {
                 {/* 추가경기 만들기 — 조별 동률 타이브레이크 등. 3분 단판, round:'EXTRA'로 순위 집계 제외 */}
                 {showExtraGameForm && (
                     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-                        onClick={() => setShowExtraGameForm(false)}>
+                        onClick={closeExtraGameForm}>
                         <div className="bg-[#1d2e4d] border-2 border-[#33456a] p-6 space-y-4 max-w-sm w-full"
                             onClick={e => e.stopPropagation()}>
                             <h2 className="text-base text-[#e9e1ca] uppercase tracking-[0.18em]">추가경기 만들기</h2>
-                            <p className="text-xs text-[#8ea0c2] leading-relaxed">
-                                조별 동률 타이브레이크 등 특수 경기용. 게임클락 3분 단판으로 시작되며,
-                                순위·와일드카드 집계에는 반영되지 않습니다.
-                            </p>
-                            <input
-                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
-                                placeholder="팀 A 이름"
+                            {extraGameAutoNote ? (
+                                <p className="text-xs text-[#ee7c1b] leading-relaxed bg-[#ee7c1b]/10 border border-[#ee7c1b]/40 p-3">
+                                    ⚠️ {extraGameAutoNote}
+                                </p>
+                            ) : (
+                                <p className="text-xs text-[#8ea0c2] leading-relaxed">
+                                    조별 동률 타이브레이크 등 특수 경기용. 게임클락 3분 단판으로 시작되며,
+                                    순위·와일드카드 집계에는 반영되지 않습니다.
+                                </p>
+                            )}
+                            <div>
+                                <label className="text-xs text-[#8ea0c2] block mb-1">조 선택</label>
+                                <select
+                                    className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition"
+                                    value={extraGameGroup}
+                                    onChange={e => { setExtraGameGroup(e.target.value); setExtraTeamAName(''); setExtraTeamBName(''); }}
+                                    autoFocus
+                                >
+                                    <option value="" className="bg-[#16243f]">조를 선택하세요</option>
+                                    {groupRoundsAvailable.map(r => (
+                                        <option key={r} value={r} className="bg-[#16243f]">{ROUNDS.find(x => x.id === r)?.label || r}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <select
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-40"
                                 value={extraTeamAName}
                                 onChange={e => setExtraTeamAName(e.target.value)}
-                                autoFocus
-                            />
-                            <input
-                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] placeholder-[#6d7fa3] focus:outline-none focus:border-[#ee7c1b] transition"
-                                placeholder="팀 B 이름"
+                                disabled={!extraGameGroup}
+                            >
+                                <option value="" className="bg-[#16243f]">팀 A 선택</option>
+                                {teamsInGroup(extraGameGroup).map(n => (
+                                    <option key={n} value={n} className="bg-[#16243f]" disabled={n === extraTeamBName}>{n}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="w-full bg-[#16243f] border-2 border-[#33456a] px-4 py-3 text-[#e9e1ca] focus:outline-none focus:border-[#ee7c1b] transition disabled:opacity-40"
                                 value={extraTeamBName}
                                 onChange={e => setExtraTeamBName(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && createAndStartExtraGame()}
-                            />
+                                disabled={!extraGameGroup}
+                            >
+                                <option value="" className="bg-[#16243f]">팀 B 선택</option>
+                                {teamsInGroup(extraGameGroup).map(n => (
+                                    <option key={n} value={n} className="bg-[#16243f]" disabled={n === extraTeamAName}>{n}</option>
+                                ))}
+                            </select>
                             <div className="flex gap-3">
-                                <button onClick={() => setShowExtraGameForm(false)}
+                                <button onClick={closeExtraGameForm}
                                     className="flex-1 bg-[#16243f] border-2 border-[#33456a] text-[#8ea0c2] hover:text-[#e9e1ca] px-4 py-3 tracking-wider transition">
                                     취소
                                 </button>
