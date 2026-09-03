@@ -21,7 +21,17 @@
 export const MIN_TEAMS = 7;
 export const MAX_TEAMS = 18;
 
-/** 접수팀 수 → { teams, groups:[3,3,4], groupCount, playoff:4|8, winners, wildcards } · 범위 밖이면 null */
+/** R10 — 모든 팀은 예선 2경기 보장 (사장 확정 2026-09-03). 4팀 조는 풀리그(3경기)가 아니라 부분 리그 */
+export const GAMES_PER_TEAM = 2;
+
+/** R8 — 3·4위전 없음. 4강 = 준결 2 + 결승 1 / 8강 = 8강 4 + 준결 2 + 결승 1 */
+const PLAYOFF_GAMES = { 4: 3, 8: 7 };
+
+/**
+ * 접수팀 수 → 대회 포맷
+ * @returns {{teams, groups:number[], groupCount, playoff:4|8, winners, wildcards,
+ *            gamesPerTeam, groupGames, playoffGames, totalGames}} · 범위 밖이면 null
+ */
 export function routeFormat(teams) {
     if (!Number.isInteger(teams) || teams < MIN_TEAMS || teams > MAX_TEAMS) return null;
     const groupCount = Math.floor(teams / 3);          // R3
@@ -30,11 +40,26 @@ export function routeFormat(teams) {
     const rem = teams % groupCount;
     // R1: 조 크기는 3 또는 4만. 3팀 조를 앞에, 4팀 조를 뒤에 (사장 표기 3/3/4 순서)
     const groups = Array.from({ length: groupCount }, (_, i) => base + (i >= groupCount - rem ? 1 : 0));
+    // R10: 팀당 2경기 → 조별 경기 수 = (조 인원 × 2) / 2 = 조 인원. 따라서 예선 총 경기 = 접수팀 수
+    const groupGames = groups.reduce((sum, g) => sum + g, 0);
+    const playoffGames = PLAYOFF_GAMES[playoff];
     return {
         teams, groups, groupCount, playoff,
         winners: groupCount,                 // R4: 조 1위 전원 진출
         wildcards: playoff - groupCount,     // R4: 남은 자리 = 와일드카드 (0이면 1위들만으로 채워짐)
+        gamesPerTeam: GAMES_PER_TEAM,
+        groupGames, playoffGames, totalGames: groupGames + playoffGames,
     };
+}
+
+/**
+ * R6-a — 결정전(3분 단판) 대상 여부.
+ * 4팀 조에서 2승 팀이 2팀 나오면 그 둘이 결정전을 치른다.
+ * 3팀 조는 팀당 2경기라 승수가 (2,1,0) 아니면 (1,1,1)뿐이라 2승 2팀이 구조적으로 나올 수 없다.
+ * → 결정전은 4팀 조가 있는 대회(7·8·10·11·13·14·16·17팀)에서만 발생한다.
+ */
+export function groupCanHaveDecider(groupSize) {
+    return groupSize >= 4;
 }
 
 /** 7~18 전 구간 라우팅 표 — 기획 §1-D와 동일해야 한다 (골든 테스트가 검증) */
@@ -103,6 +128,8 @@ export function applyExtraGameResult(rows, extras) {
 /* ══════════════════════════════════════════════════════════
    R5 — 와일드카드 선발
    ① 조 크기가 다르면 큰 조(4팀) 2위가 먼저 (D2 권장값)
+      근거: 팀당 경기 수는 2로 같지만(R10), 4팀 중 2위가 3팀 중 2위보다 더 어렵다.
+      사장 10팀 지시("3팀인 조 1위들 + 4팀인조 1/2위")를 일반화한 것.
    ② 같은 크기끼리는 득실차 → 다득점 → 최소실점
    ③ 슬롯 ≥ 후보 수면 비교 없이 전원 진출
    ══════════════════════════════════════════════════════════ */
@@ -134,7 +161,8 @@ export function pickWildcards(standings, slots, rule = WC_RULE.LARGE_GROUP_FIRST
 
     const sizesDiffer = new Set(pool.map(c => c.groupSize)).size > 1;
     const gpDiffer = new Set(pool.map(c => c.gp)).size > 1;
-    // 경기 수가 다르면 경기당 평균으로 비교 (3팀조 2경기 vs 4팀조 3경기)
+    // 경기 수가 다르면 경기당 평균으로 비교. R10(팀당 2경기)에서는 항상 같지만,
+    // 풀리그로 운영한 과거 대회나 몰수 등으로 경기 수가 어긋난 경우를 대비해 유지
     const met = c => { const n = gpDiffer ? (c.gp || 1) : 1; return [c.diff / n, c.pf / n, c.pa / n]; };
     const cmp = (a, b) => {
         if (rule === WC_RULE.LARGE_GROUP_FIRST && sizesDiffer && a.groupSize !== b.groupSize)
@@ -156,8 +184,8 @@ export function pickWildcards(standings, slots, rule = WC_RULE.LARGE_GROUP_FIRST
 /**
  * 진출팀 성적순 정렬.
  * ① 조 1위 전원이 와일드카드보다 위
- * ② 같은 그룹 안에서는 승률 → 경기당 득실차 → 경기당 득점
- *    (3팀조 2경기 / 4팀조 3경기라 총계가 아닌 경기당 값으로 비교 — D7 권장값)
+ * ② 같은 그룹 안에서는 승률 → 경기당 득실차 → 경기당 득점 (D7 권장값)
+ *    R10(팀당 2경기)에서는 경기 수가 같지만, 과거 풀리그 대회·몰수 등으로 어긋난 경우를 위해 경기당으로 비교
  */
 export function rankSeeds(qualified) {
     const met = c => { const n = c.gp || 1; return [c.w / n, c.diff / n, c.pf / n]; };

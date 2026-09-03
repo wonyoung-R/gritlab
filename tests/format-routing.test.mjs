@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    routeFormat, FORMAT_TABLE, MIN_TEAMS, MAX_TEAMS,
+    routeFormat, FORMAT_TABLE, MIN_TEAMS, MAX_TEAMS, GAMES_PER_TEAM, groupCanHaveDecider,
     standingRowsFor, applyExtraGameResult, rankSeeds, pairSeeds,
     computePlayoffSeeding, WC_RULE,
 } from '../src/lib/format-routing.js';
@@ -85,13 +85,43 @@ test('조 수가 5개 이상이면 8강 (조 1위가 4강에 다 못 들어감)'
     }
 });
 
-test('모든 조가 3팀인 대회(12·15·18팀)는 팀당 예선 2경기로 균등하다', () => {
+test('9·12·15·18팀은 전 조가 3팀 — 17팀은 3/4 혼합이 불가피하다', () => {
     for (const n of [9, 12, 15, 18]) {
         const f = routeFormat(n);
         assert.ok(f.groups.every(g => g === 3), `${n}팀: 전 조 3팀`);
     }
     // 17팀은 3·4로만 나누면 3/3/3/4/4 외 대안이 없어 혼합이 불가피 (R9)
     assert.deepEqual(routeFormat(17).groups, [3, 3, 3, 4, 4]);
+});
+
+test('모든 팀이 예선 2경기 — 4팀 조는 풀리그가 아니라 부분 리그 (R10)', () => {
+    assert.equal(GAMES_PER_TEAM, 2);
+    for (let n = MIN_TEAMS; n <= MAX_TEAMS; n++) {
+        const f = routeFormat(n);
+        assert.equal(f.gamesPerTeam, 2, `${n}팀`);
+        // 팀당 2경기 → 조별 경기 수 = 조 인원. 그래서 예선 총 경기 = 접수팀 수와 같아진다
+        assert.equal(f.groupGames, n, `${n}팀: 예선 경기 수는 접수팀 수와 같다`);
+    }
+});
+
+test('본선 경기 수 — 4강 3경기 / 8강 7경기 (3·4위전 없음, R8)', () => {
+    for (let n = MIN_TEAMS; n <= MAX_TEAMS; n++) {
+        const f = routeFormat(n);
+        assert.equal(f.playoffGames, f.playoff === 4 ? 3 : 7, `${n}팀`);
+        assert.equal(f.totalGames, f.groupGames + f.playoffGames, `${n}팀 총 경기`);
+    }
+    assert.equal(routeFormat(12).totalGames, 15);
+    assert.equal(routeFormat(18).totalGames, 25);
+});
+
+test('결정전은 4팀 조에서만 발생 — 3팀 조는 2승 2팀이 구조적으로 불가능 (R6-a)', () => {
+    assert.equal(groupCanHaveDecider(3), false);
+    assert.equal(groupCanHaveDecider(4), true);
+    // 4팀 조가 있는 대회 = 결정전이 나올 수 있는 대회
+    const withFour = [];
+    for (let n = MIN_TEAMS; n <= MAX_TEAMS; n++)
+        if (routeFormat(n).groups.some(g => g === 4)) withFour.push(n);
+    assert.deepEqual(withFour, [7, 8, 10, 11, 13, 14, 16, 17]);
 });
 
 test('범위 밖 접수팀은 null (수동 모드로 넘김 — D6)', () => {
@@ -195,6 +225,7 @@ test('WC 슬롯이 후보 수 이상이면 비교 없이 전원 진출하고 추
 
 // 3팀 조는 각 팀 2경기라 "2승 동률"이 구조적으로 불가능(2승은 한 팀뿐).
 // 2팀 동률은 4팀 조에서 발생하므로 A조를 4팀으로 둔다.
+// (이 픽스처는 풀리그 4팀 조 = 팀당 3경기. 과거 방식으로 운영된 대회의 회귀 케이스)
 const tieFixture = () => [
     // A조 4팀: A1·A2 둘 다 2승 1패 → 1위 동률 (A3·A4는 1승)
     ...roundRobin('GROUP_A', ['A1', 'A2', 'A3', 'A4'], {
@@ -213,6 +244,27 @@ test('조 1위 동률이면 자동 시딩을 보류한다 (득실차로 임의 �
     assert.equal(s.semis, null, '보류 중에는 대진을 만들지 않는다');
     assert.deepEqual(s.tiedNames.GROUP_A.sort(), ['A1', 'A2']);
     assert.equal(s.tieKinds.GROUP_A, 'TWO_WAY');
+});
+
+test('실제 편성(4팀 조·팀당 2경기)에서 2승 2팀이 나오면 결정전 대상이 된다', () => {
+    // 4팀 조 팀당 2경기 = 4경기. 서로 만나지 않은 두 팀(A1·A4)이 나란히 2승 하는 상황
+    const ms = [
+        game('GROUP_A', 'A1', 'A2', 21, 10),
+        game('GROUP_A', 'A4', 'A3', 21, 10),
+        game('GROUP_A', 'A1', 'A3', 21, 12),
+        game('GROUP_A', 'A4', 'A2', 21, 12),
+        ...roundRobin('GROUP_B', ['B1', 'B2', 'B3'], { 'B1>B2': [21, 10], 'B1>B3': [21, 10], 'B2>B3': [21, 10] }),
+        ...roundRobin('GROUP_C', ['C1', 'C2', 'C3'], { 'C1>C2': [21, 12], 'C1>C3': [21, 12], 'C2>C3': [21, 12] }),
+    ];
+    const s = computePlayoffSeeding(ms, { size: 4 });
+    assert.deepEqual(s.pendingTies, ['GROUP_A'], '2승 2팀 → 결정전 전까지 시딩 보류');
+    assert.equal(s.tieKinds.GROUP_A, 'TWO_WAY');
+    assert.deepEqual(s.tiedNames.GROUP_A.sort(), ['A1', 'A4']);
+
+    // 결정전 결과가 들어오면 승자가 조 1위
+    const after = computePlayoffSeeding([...ms, game('EXTRA', 'A1', 'A4', 12, 15)], { size: 4 });
+    assert.deepEqual(after.pendingTies, []);
+    assert.equal(after.qualified.find(t => t.group === 'GROUP_A' && t.via === 'win').name, 'A4');
 });
 
 test('추가경기(EXTRA) 결과가 들어오면 그 승자가 조 1위로 확정되고 시딩이 진행된다', () => {
