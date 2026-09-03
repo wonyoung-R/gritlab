@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useParams } from 'react-router-dom';
 import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, ChevronDown, Power, Play, Pause, X, Minus, BellRing, Palette, ChevronsUp, ChevronsDown, Keyboard, ChevronLeft, ChevronRight, GripVertical, Lock, Unlock, Flag, Maximize2, LayoutDashboard } from 'lucide-react';
-import { computePlayoffSeeding, standingRowsFor } from '../../lib/format-routing';
+import { computePlayoffSeeding, standingRowsFor, advancePairs } from '../../lib/format-routing';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
 
@@ -52,8 +52,13 @@ const useLongPress = (onLongPress, onClick, ms = 600) => {
 const defaultTimeouts = () => parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1;
 
 const ROUNDS = [
+    // 조는 A~F까지 (18팀 = 6개 조가 최대). 실제로 경기가 있는 라운드만 화면에 나온다
     { id: 'GROUP_A', label: '예선 A' },
     { id: 'GROUP_B', label: '예선 B' },
+    { id: 'GROUP_C', label: '예선 C' },
+    { id: 'GROUP_D', label: '예선 D' },
+    { id: 'GROUP_E', label: '예선 E' },
+    { id: 'GROUP_F', label: '예선 F' },
     { id: 'QUARTER', label: '8강' },
     { id: 'SEMI', label: '4강' },
     { id: '3RD_PLACE', label: '3위전' },
@@ -234,6 +239,9 @@ export default function ThreeVThreeAdmin() {
     const [tempSecs, setTempSecs] = useState(0);
     const [tempMsec, setTempMsec] = useState(0);
     const timerRef = useRef(null);
+    // 부저를 렌더 스케줄에서 분리하기 위한 최신 클락 스냅샷 + 중복 발사 방지 (Scoreboard.jsx와 동일 구조)
+    const gameTimeRef = useRef(0), shotClockRef = useRef(0);
+    const buzzedRef = useRef({ game: false, shot: false });
 
     // ── 게임클락 롱프레스: 시간 설정, 탭: 재생/일시정지 ──
     const gameClockHandlers = useLongPress(() => {
@@ -344,25 +352,22 @@ export default function ThreeVThreeAdmin() {
                 const now = Date.now();
                 const diff = (now - lastUpdate) / 1000;
                 lastUpdate = now;
-                setGameTime(prev => {
-                    const next = Math.max(0, prev - diff);
-                    if (prev > 0 && next <= 0) {
-                        setTimerRunning(false);
-                        clearInterval(timerRef.current);
-                        playBuzzer();
-                        return 0;
-                    }
-                    return next;
-                });
-                setShotClock(prev => {
-                    if (shotClockPaused) return prev;
-                    const next = Math.max(0, prev - diff);
-                    if (prev > 0 && next <= 0) {
-                        playBuzzerShot();
-                        return 0;
-                    }
-                    return next;
-                });
+                _wakeCtx(); // 경기 중 브라우저가 오디오를 잠재우면 0초에 resume 대기가 생긴다 — 매 틱 깨워둠
+
+                // ── 부저: 렌더링을 기다리지 않고 즉시 (상태 업데이터 안에서 울리면 렌더 스케줄만큼 밀린다) ──
+                const tNext = Math.max(0, gameTimeRef.current - diff);
+                const sNext = shotClockPaused ? shotClockRef.current : Math.max(0, shotClockRef.current - diff);
+                const gameOver = gameTimeRef.current > 0 && tNext <= 0;
+                const shotOver = !shotClockPaused && shotClockRef.current > 0 && sNext <= 0;
+                if (gameOver && !buzzedRef.current.game) { buzzedRef.current.game = true; playBuzzer(); }
+                else if (shotOver && !buzzedRef.current.shot) { buzzedRef.current.shot = true; playBuzzerShot(); }
+                if (tNext > 0) buzzedRef.current.game = false;
+                if (sNext > 0) buzzedRef.current.shot = false;
+                if (gameOver) { setTimerRunning(false); clearInterval(timerRef.current); }
+
+                // ── 상태 갱신 (부수효과 없는 순수 업데이터) ──
+                setGameTime(prev => Math.max(0, prev - diff));
+                setShotClock(prev => (shotClockPaused ? prev : Math.max(0, prev - diff)));
             }, 50);
         } else {
             clearInterval(timerRef.current);
@@ -535,75 +540,88 @@ export default function ThreeVThreeAdmin() {
         return true;
     };
 
-    // ── 대진 자동 완성: 예선 전부 종료 → 4강 시딩, 4강 전부 종료 → 결승 매치업 ──
+    // ── 대진 자동 완성 ──
+    //   예선 전부 종료 → 본선 1라운드(조 5개 이상이면 8강, 아니면 4강) 시딩
+    //   8강 전부 종료 → 4강 편성 / 4강 전부 종료 → 결승 편성
     // 운영자가 이미 팀명을 넣어둔 row는 절대 덮어쓰지 않는다 (수동 편성 보호).
+    const winnerOf = (m) => (m.winner === 'A_WIN' ? m.team_a_name : m.team_b_name);
+
+    /** 한 라운드의 매치업을 DB에 쓴다. 기존 row가 있으면 update, 없으면 insert */
+    const writeBracketRound = async (round, pairs, existingRows, label) => {
+        const written = [];
+        for (let i = 0; i < pairs.length; i++) {
+            const [a, b] = pairs[i];
+            const fields = { team_a_name: a, team_b_name: b, updated_at: new Date().toISOString() };
+            const row = existingRows[i];
+            if (row) {
+                const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', row.id);
+                if (error) { alert(`${label} 자동 편성 실패: ` + error.message); return null; }
+                written.push({ ...row, ...fields });
+            } else {
+                const { data, error } = await supabase.from('game_3v3_brackets').insert([{
+                    tournament_id: activeTournamentId, round, match_order: i + 1,
+                    team_a_name: a, team_b_name: b, team_a_score: 0, team_b_score: 0, status: 'PENDING',
+                }]).select().single();
+                if (error) { alert(`${label} 자동 편성 실패: ` + error.message); return null; }
+                written.push(data);
+            }
+        }
+        setAllMatches(prev => {
+            const ids = new Set(written.map(w => w.id));
+            return [...prev.filter(m => !ids.has(m.id)), ...written];
+        });
+        return written;
+    };
+
     const maybeAutoFillBracket = async (ms) => {
         if (!activeTournamentId || autoFillBusyRef.current) return;
         autoFillBusyRef.current = true;
         try {
             const groupGames = ms.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
-            const semiRows = ms.filter(m => m.round === 'SEMI').sort((a, b) => a.match_order - b.match_order);
+            const groupRounds = [...new Set(groupGames.map(m => m.round))];
+            // R2: 조 1위가 전부 들어가는 가장 작은 브라켓. 조 4개까지 4강, 5개부터 8강
+            const size = groupRounds.length >= 5 ? 8 : 4;
+            const byOrder = (a, b) => a.match_order - b.match_order;
+            const quarterRows = ms.filter(m => m.round === 'QUARTER').sort(byOrder);
+            const semiRows = ms.filter(m => m.round === 'SEMI').sort(byOrder);
 
-            // 1) 예선 전부 종료 → 조 1위 동률 확인 + (SEMI가 비어있으면) 4강 시딩
+            // 1) 예선 전부 종료 → 본선 1라운드 시딩
             if (groupGames.length && groupGames.every(m => m.status === 'ENDED')) {
-                const seeding = computePlayoffSeeding(ms, { size: 4 });
+                const seeding = computePlayoffSeeding(ms, { size });
                 // R6: 조 1위가 승수 동률이면 득실차로 임의 확정하지 않고 보류한다.
-                // 추가경기(EXTRA)가 저장되면 handleSaveMatch가 이 함수를 다시 불러 자동으로 풀린다.
-                // 보류 상태는 SEMI 편성 여부와 무관하게 갱신해야 배너가 해소 후 사라진다.
+                // 결정전(EXTRA)이 저장되면 handleSaveMatch가 이 함수를 다시 불러 자동으로 풀린다.
+                // 보류 상태는 본선 편성 여부와 무관하게 갱신해야 배너가 해소 후 사라진다.
                 const holding = !!seeding?.pendingTies?.length;
                 setSeedingHold(holding ? { rounds: seeding.pendingTies, names: seeding.tiedNames || {}, kinds: seeding.tieKinds || {} } : null);
                 setTieNotes(seeding?.tieNotes || []);
                 if (holding) return;
-                // 이미 편성된 SEMI는 덮어쓰지 않는다(수동 편성 보호) — 아래 2)로 흘려보낸다
-                if (seeding && !semiRows.some(m => m.team_a_name || m.team_b_name)) {
-                    const written = [];
-                    for (let i = 0; i < 2; i++) {
-                        const [a, b] = seeding.semis[i];
-                        const row = semiRows[i];
-                        if (row) {
-                            const fields = { team_a_name: a.name, team_b_name: b.name, updated_at: new Date().toISOString() };
-                            const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', row.id);
-                            if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
-                            written.push({ ...row, ...fields });
-                        } else {
-                            const { data, error } = await supabase.from('game_3v3_brackets').insert([{
-                                tournament_id: activeTournamentId, round: 'SEMI', match_order: i + 1,
-                                team_a_name: a.name, team_b_name: b.name,
-                                team_a_score: 0, team_b_score: 0, status: 'PENDING',
-                            }]).select().single();
-                            if (error) { alert('4강 자동 시딩 실패: ' + error.message); return; }
-                            written.push(data);
-                        }
-                    }
-                    setAllMatches(prev => {
-                        const ids = new Set(written.map(w => w.id));
-                        return [...prev.filter(m => !ids.has(m.id)), ...written];
-                    });
-                    setAutoSemiInfo({ qualified: seeding.qualified, needsDraw: seeding.needsDraw });
+
+                const firstRound = size === 8 ? 'QUARTER' : 'SEMI';
+                const rows = size === 8 ? quarterRows : semiRows;
+                const label = size === 8 ? '8강' : '4강';
+                if (seeding && !rows.some(m => m.team_a_name || m.team_b_name)) {
+                    const pairs = seeding.semis.map(([a, b]) => [a.name, b.name]);
+                    if (await writeBracketRound(firstRound, pairs, rows, label))
+                        setAutoSemiInfo({ qualified: seeding.qualified, needsDraw: seeding.needsDraw });
                     return;
                 }
             }
 
-            // 2) 4강 2경기 전부 종료 + FINAL 비어있음 → 결승 매치업 채움
+            // 2) 8강 4경기 전부 종료 + 4강 비어있음 → 4강 편성 (1v8 승자 vs 4v5 승자 / 2v7 vs 3v6)
+            const quarterNamed = quarterRows.filter(m => m.team_a_name && m.team_b_name);
+            if (quarterNamed.length === 4 && quarterNamed.every(m => m.status === 'ENDED' && m.winner)
+                && !semiRows.some(m => m.team_a_name || m.team_b_name)) {
+                await writeBracketRound('SEMI', advancePairs(quarterNamed.map(winnerOf)), semiRows, '4강');
+                return;
+            }
+
+            // 3) 4강 2경기 전부 종료 + 결승 비어있음 → 결승 편성
             const semiNamed = semiRows.filter(m => m.team_a_name && m.team_b_name);
             if (semiNamed.length === 2 && semiNamed.every(m => m.status === 'ENDED' && m.winner)) {
                 const finalRow = ms.find(m => m.round === 'FINAL');
                 if (finalRow && (finalRow.team_a_name || finalRow.team_b_name)) return; // 수동 편성 보호
-                const winnerOf = m => (m.winner === 'A_WIN' ? m.team_a_name : m.team_b_name);
-                const wa = winnerOf(semiNamed[0]), wb = winnerOf(semiNamed[1]);
-                if (finalRow) {
-                    const fields = { team_a_name: wa, team_b_name: wb, updated_at: new Date().toISOString() };
-                    const { error } = await supabase.from('game_3v3_brackets').update(fields).eq('id', finalRow.id);
-                    if (error) { alert('결승 자동 편성 실패: ' + error.message); return; }
-                    setAllMatches(prev => prev.map(m => m.id === finalRow.id ? { ...m, ...fields } : m));
-                } else {
-                    const { data, error } = await supabase.from('game_3v3_brackets').insert([{
-                        tournament_id: activeTournamentId, round: 'FINAL', match_order: 1,
-                        team_a_name: wa, team_b_name: wb, team_a_score: 0, team_b_score: 0, status: 'PENDING',
-                    }]).select().single();
-                    if (error) { alert('결승 자동 편성 실패: ' + error.message); return; }
-                    setAllMatches(prev => [...prev, data]);
-                }
+                await writeBracketRound('FINAL', [[winnerOf(semiNamed[0]), winnerOf(semiNamed[1])]],
+                    finalRow ? [finalRow] : [], '결승');
             }
         } finally {
             autoFillBusyRef.current = false;
@@ -613,7 +631,11 @@ export default function ThreeVThreeAdmin() {
     // 이후 라운드(SEMI/FINAL)에 이미 팀명이 확정됐는지 — 자동 시딩은 1회성이라
     // 그 뒤의 예선/4강 정정은 대진에 자동 반영되지 않는다 (BUG-006)
     const downstreamSeeded = (round) => {
-        const downstream = round?.startsWith('GROUP_') ? 'SEMI' : round === 'SEMI' ? 'FINAL' : null;
+        // 8강을 쓰는 대회면 예선의 다음 라운드는 4강이 아니라 8강이다
+        const hasQuarter = allMatches.some(m => m.round === 'QUARTER' && (m.team_a_name || m.team_b_name));
+        const downstream = round?.startsWith('GROUP_') ? (hasQuarter ? 'QUARTER' : 'SEMI')
+            : round === 'QUARTER' ? 'SEMI'
+            : round === 'SEMI' ? 'FINAL' : null;
         if (!downstream) return false;
         return allMatches.some(m => m.round === downstream && (m.team_a_name || m.team_b_name));
     };
@@ -985,6 +1007,8 @@ export default function ThreeVThreeAdmin() {
     const bracketRounds = ROUNDS.filter(r => allMatches.some(m => m.round === r.id));
     const groupRoundsAvailable = [...new Set(allMatches.filter(m => m.round?.startsWith('GROUP_')).map(m => m.round))].sort();
     const shotClockLow = shotClock > 0 && shotClock < 5;
+    gameTimeRef.current = gameTime;      // 부저 판정용 최신값 (위 타이머가 읽는다)
+    shotClockRef.current = shotClock;
 
     if (loading || !authed) {
         return <div className="min-h-screen bg-[#16243f] flex items-center justify-center text-[#8ea0c2]" style={{ fontFamily: "'Anton', 'Pretendard', sans-serif" }}>Loading...</div>;

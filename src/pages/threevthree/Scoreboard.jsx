@@ -203,6 +203,10 @@ export default function ThreeVThreeScoreboard() {
 
     const timerRef  = useRef(null);
     const resultsTimerRef = useRef(null);
+    // 부저를 렌더 스케줄에서 분리하기 위한 최신 클락 스냅샷 + 중복 발사 방지
+    const gameRef = useRef(game);
+    gameRef.current = game;
+    const buzzedRef = useRef({ game: false, shot: false });
 
     // ── 사운드 프리로드: 첫 인터랙션 시 AudioContext 활성화 + 버퍼 로드 ──
     useEffect(() => {
@@ -312,19 +316,29 @@ export default function ThreeVThreeScoreboard() {
                 const now = Date.now();
                 const diff = (now - lastUpdate) / 1000;
                 lastUpdate = now;
+                wakeCtx(); // 경기 중 브라우저가 오디오를 잠재우면 0초에 resume 대기가 생긴다 — 매 틱 깨워둠
+
+                // ── 부저: 렌더링을 기다리지 않고 즉시 울린다 ──
+                // 예전에는 setGame 업데이터 안에서 울렸다. 업데이터는 React가 렌더를 스케줄한 뒤에
+                // 실행되고, StrictMode·동시성 모드에서는 두 번 실행될 수도 있어 소리가 밀리거나 겹쳤다.
+                // 판정은 최신 스냅샷(gameRef)으로 여기서 직접 하고, 상태 갱신은 아래에서 순수하게 처리한다.
+                const cur = gameRef.current;
+                const tNext = Math.max(0, cur.game_time - diff);
+                const sNext = cur.shot_clock_paused ? cur.shot_clock : Math.max(0, cur.shot_clock - diff);
+                const gameOver = cur.game_time > 0 && tNext <= 0;
+                const shotOver = !cur.shot_clock_paused && cur.shot_clock > 0 && sNext <= 0;
+                if (gameOver && !buzzedRef.current.game) { buzzedRef.current.game = true; playBuzzerGame(); }
+                else if (shotOver && !buzzedRef.current.shot) { buzzedRef.current.shot = true; playBuzzerShot(); }
+                if (tNext > 0) buzzedRef.current.game = false;
+                if (sNext > 0) buzzedRef.current.shot = false;
+                if (gameOver) { setTimerRunning(false); clearInterval(timerRef.current); }
+
+                // ── 상태 갱신 (부수효과 없는 순수 업데이터) ──
                 setGame(prev => {
                     const nextTime = Math.max(0, prev.game_time - diff);
                     const nextShot = prev.shot_clock_paused ? prev.shot_clock : Math.max(0, prev.shot_clock - diff);
-                    if (prev.game_time > 0 && nextTime <= 0) {
-                        playBuzzerGame();
-                        setTimerRunning(false);
-                        clearInterval(timerRef.current);
-                        return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
-                    }
-                    if (!prev.shot_clock_paused && prev.shot_clock > 0 && nextShot <= 0) {
-                        playBuzzerShot();
-                        return { ...prev, game_time: nextTime, shot_clock: 0 };
-                    }
+                    if (prev.game_time > 0 && nextTime <= 0) return { ...prev, game_time: 0, shot_clock: 0, status: 'ENDED' };
+                    if (!prev.shot_clock_paused && prev.shot_clock > 0 && nextShot <= 0) return { ...prev, game_time: nextTime, shot_clock: 0 };
                     return { ...prev, game_time: nextTime, shot_clock: nextShot };
                 });
             }, 50);

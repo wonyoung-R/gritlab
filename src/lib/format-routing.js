@@ -221,6 +221,16 @@ function avoidSameGroup(pairs) {
     return pairs; // 단일 조 등 회피 불가 — 원안 유지
 }
 
+/**
+ * 앞 라운드 승자 → 다음 라운드 매치업 (상위 시드가 위에 남는 표준 브라켓).
+ * 8강 승자 [Q1,Q2,Q3,Q4] → 4강 [[Q1승, Q4승], [Q2승, Q3승]]
+ * 같은 조 회피는 시드 단계에서 이미 끝났으므로 여기서는 다시 섞지 않는다.
+ */
+export function advancePairs(winners) {
+    const n = winners.length;
+    return Array.from({ length: Math.floor(n / 2) }, (_, i) => [winners[i], winners[n - 1 - i]]);
+}
+
 /** 성적순 배열 → 매치업. 4팀: [1v4, 2v3] · 8팀: [1v8, 2v7, 3v6, 4v5] (승자 교차는 상위 시드가 위) */
 export function pairSeeds(ranked) {
     const n = ranked.length;

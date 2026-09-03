@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
     routeFormat, FORMAT_TABLE, MIN_TEAMS, MAX_TEAMS, GAMES_PER_TEAM, groupCanHaveDecider,
     standingRowsFor, applyExtraGameResult, rankSeeds, pairSeeds,
-    computePlayoffSeeding, WC_RULE,
+    computePlayoffSeeding, WC_RULE, advancePairs,
 } from '../src/lib/format-routing.js';
 
 /* ── 헬퍼: 조 경기 만들기 ────────────────────────────────── */
@@ -179,6 +179,35 @@ test('같은 조 대결은 하위 시드 교환으로 회피된다', () => {
     const pairs = pairSeeds(ranked);
     pairs.forEach(([x, y]) => assert.notEqual(x.group, y.group));
     assert.deepEqual(pairs.map(p => p.map(t => t.name)), [['A1', 'C1'], ['B1', 'A2']]);
+});
+
+test('15팀 5개 조 — 8강 시딩이 1v8 / 2v7 / 3v6 / 4v5로 만들어진다', () => {
+    // 5개 조 × 3팀. 각 조 1위가 뚜렷하고 2위 중 셋이 와일드카드로 올라간다
+    const ms = [];
+    const spread = [30, 24, 18, 12, 6];  // 조별 1위 강도 차이 (경기당 득실)
+    'ABCDE'.split('').forEach((g, i) => {
+        const d = spread[i];
+        ms.push(...roundRobin(`GROUP_${g}`, [`${g}1`, `${g}2`, `${g}3`], {
+            [`${g}1>${g}2`]: [21, 21 - d], [`${g}1>${g}3`]: [21, 21 - d], [`${g}2>${g}3`]: [21, 10 + i],
+        }));
+    });
+    const s = computePlayoffSeeding(ms, { size: 8 });
+    assert.deepEqual(s.pendingTies, []);
+    assert.equal(s.qualified.length, 8, '조 1위 5팀 + 와일드카드 3팀');
+    assert.equal(s.qualified.filter(t => t.via === 'win').length, 5);
+    assert.equal(s.qualified.filter(t => t.via === 'wc').length, 3);
+    assert.equal(s.semis.length, 4, '8강은 4경기');
+    // 1v8 / 2v7 / 3v6 / 4v5 — 시드 번호로 확인
+    const idx = n => s.ranked.findIndex(t => t.name === n);
+    s.semis.forEach(([a, b], i) => {
+        assert.equal(idx(a.name), i, `${i + 1}번 경기 위쪽은 ${i + 1}시드`);
+        assert.equal(idx(b.name), 7 - i, `${i + 1}번 경기 아래쪽은 ${8 - i}시드`);
+    });
+});
+
+test('8강 승자가 4강으로 교차 배치된다 — 1v8 승자 vs 4v5 승자', () => {
+    assert.deepEqual(advancePairs(['Q1승', 'Q2승', 'Q3승', 'Q4승']), [['Q1승', 'Q4승'], ['Q2승', 'Q3승']]);
+    assert.deepEqual(advancePairs(['S1승', 'S2승']), [['S1승', 'S2승']], '4강 승자 → 결승');
 });
 
 /* ══════════════════════════════════════════════════════════
