@@ -1711,14 +1711,23 @@ export default function ThreeVThreeAdmin() {
                         {/* 3팀 순환 동률을 득실차로 정렬한 경우 — 막지는 않고 근거만 알린다 (R6) */}
                         {tieNotes.length > 0 && (
                             <div className="border border-[#33456a] bg-[#16243f] p-3 space-y-1">
-                                {tieNotes.map(n => (
-                                    <div key={n.round} className="text-xs text-[#8ea0c2]">
-                                        ℹ️ {ROUNDS.find(x => x.id === n.round)?.label || n.round} 1위가 {n.names.length}팀 승수 동률
-                                        {n.names.length ? ` (${n.names.join(' · ')})` : ''} — 맞대결이 순환이라
-                                        <span className="text-[#e9e1ca]"> 득실차 → 다득점</span> 순으로 정렬했습니다.
-                                        다르게 정하시려면 추가경기를 만들거나 4강 대진을 직접 입력하세요.
-                                    </div>
-                                ))}
+                                {tieNotes.map(n => {
+                                    const label = ROUNDS.find(x => x.id === n.round)?.label || n.round;
+                                    return n.decidedBy === 'EXTRA' ? (
+                                        <div key={n.round} className="text-xs text-[#8ea0c2]">
+                                            ℹ️ {label} 1위는 <span className="text-[#e9e1ca]">결정전 결과로 {n.winner}</span>으로 정해졌습니다
+                                            ({n.names.join(' · ')} 승수 동률). 결정전은 조별 순위 집계에 들어가지 않아
+                                            순위표에는 두 팀이 같은 승패로 표시됩니다.
+                                        </div>
+                                    ) : (
+                                        <div key={n.round} className="text-xs text-[#8ea0c2]">
+                                            ℹ️ {label} 1위가 {n.names.length}팀 승수 동률
+                                            {n.names.length ? ` (${n.names.join(' · ')})` : ''} — 맞대결이 순환이라
+                                            <span className="text-[#e9e1ca]"> 득실차 → 다득점</span> 순으로 정렬했습니다.
+                                            다르게 정하시려면 추가경기를 만들거나 4강 대진을 직접 입력하세요.
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 

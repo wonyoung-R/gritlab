@@ -314,6 +314,16 @@ test('추가경기(EXTRA) 결과가 들어오면 그 승자가 조 1위로 확�
     s.semis.forEach(([x, y]) => assert.ok(x && y));
 });
 
+test('결정전으로 1위가 정해지면 그 사실이 안내로 남는다 (순위표엔 같은 승패로 보이므로)', () => {
+    const ms = [...tieFixture(), game('EXTRA', 'A1', 'A2', 15, 18)];
+    const s = computePlayoffSeeding(ms, { size: 4 });
+    const note = s.tieNotes.find(n => n.round === 'GROUP_A');
+    assert.ok(note, '결정전 안내가 남는다');
+    assert.equal(note.decidedBy, 'EXTRA');
+    assert.equal(note.winner, 'A2', '결정전 승자');
+    assert.deepEqual(note.names.sort(), ['A1', 'A2']);
+});
+
 test('추가경기가 아직 진행 중(미종료)이면 계속 보류한다', () => {
     const ms = [...tieFixture(), game('EXTRA', 'A1', 'A2', 0, 0, 'PENDING')];
     assert.deepEqual(computePlayoffSeeding(ms, { size: 4 }).pendingTies, ['GROUP_A']);

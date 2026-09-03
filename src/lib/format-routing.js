@@ -266,9 +266,11 @@ export function computePlayoffSeeding(matches, options = {}) {
             pendingTies.push(round);
             tiedNames[round] = res.tiedNames || [];
             tieKinds[round] = res.kind || 'TWO_WAY';
-        } else if (res.decidedBy === 'DIFF') {
-            // 막지는 않지만 근거를 남긴다 — 운영자가 뒤집고 싶으면 대진을 직접 편성하면 된다
-            tieNotes.push({ round, names: res.tiedNames || [], decidedBy: 'DIFF' });
+        } else if (res.decidedBy) {
+            // 막지는 않지만 근거를 남긴다 — 운영자가 뒤집고 싶으면 대진을 직접 편성하면 된다.
+            // EXTRA: 결정전으로 1위가 정해진 경우. 조별 순위표에는 결정전이 집계되지 않아
+            //        두 팀이 같은 승패로 보이므로, 왜 순위가 갈렸는지 화면에 남겨야 한다.
+            tieNotes.push({ round, names: res.tiedNames || [], decidedBy: res.decidedBy, winner: res.rows[0].name });
         }
         return { round, rows: res.rows.map((r, i) => wrapCandidate(r, round, res.rows.length, i)) };
     });
