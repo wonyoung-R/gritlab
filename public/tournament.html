@@ -730,12 +730,12 @@
     <!-- STEP 1 -->
     <section id="s1">
       <div class="section-label"><span class="num">01</span> TOURNAMENT FORMAT</div>
-      <p class="section-sub">참가 팀 수와 조 수를 입력하세요. 예선은 조별 리그전, 본선은 <b>4강 토너먼트 고정</b>입니다.</p>
+      <p class="section-sub">참가 팀 수를 입력하면 <b>조 수와 팀당 경기 수가 표준 규칙(7~18팀)으로 자동 설정</b>됩니다. 모든 팀 예선 2경기 · 조 4개까지 4강, 5개부터 8강. 필요하면 아래 값을 직접 고칠 수 있습니다.</p>
       <div class="panel">
         <div class="controls">
-          <div class="field-wrap"><label>참가 팀 수</label><input class="field" id="numTeams" type="number" min="4" max="32" value="8"></div>
-          <div class="field-wrap"><label>조 수</label><input class="field" id="numGroups" type="number" min="1" max="8" value="2"></div>
-          <div class="field-wrap"><label>팀당 경기 수 (0=풀리그 · 최소 2)</label><input class="field" id="gamesPerTeam" type="number" min="0" max="20" value="0"></div>
+          <div class="field-wrap"><label>참가 팀 수 (표준 7~18)</label><input class="field" id="numTeams" type="number" min="4" max="32" value="12"></div>
+          <div class="field-wrap"><label>조 수 (자동)</label><input class="field" id="numGroups" type="number" min="1" max="8" value="4"></div>
+          <div class="field-wrap"><label>팀당 경기 수 (자동 2 · 0=풀리그)</label><input class="field" id="gamesPerTeam" type="number" min="0" max="20" value="2"></div>
         </div>
         <div class="preview" id="formatPreview"></div>
         <div class="row-actions">
@@ -878,8 +878,8 @@ let selectedTournamentId = null; // 결과 조회 대상
 let S = {                      // 빌더 상태
   tournamentId: null,          // 빌더가 바인딩된 대회
   tournamentName: '',
-  numTeams: 8, numGroups: 2,
-  gamesPerTeam: 0,             // 팀당 경기 수 (0 = 풀리그). >0 이면 라운드 로빈 앞쪽으로 부분 생성
+  numTeams: 12, numGroups: 4,
+  gamesPerTeam: 2,             // 팀당 경기 수 (0 = 풀리그). >0 이면 라운드 로빈 앞쪽으로 부분 생성
   teams: [],
   assign: {},
   groupGames: [],
@@ -1347,15 +1347,15 @@ function bindBuilderToTournament(t){
   // 새 대회 바인딩 → 빌더 상태 초기화
   S = {
     tournamentId: t.id, tournamentName: t.title,
-    numTeams: 8, numGroups: 2, gamesPerTeam: 0,
+    numTeams: 12, numGroups: 4, gamesPerTeam: 2,
     teams: [], assign: {}, groupGames: [], manualOrder: {}, bracket: null
   };
   currentStep = 1;
   document.getElementById('bindName').textContent = t.title;
   document.getElementById('saveState').textContent = '';
-  document.getElementById('numTeams').value = 8;
-  document.getElementById('numGroups').value = 2;
-  document.getElementById('gamesPerTeam').value = 0;
+  document.getElementById('numTeams').value = 12;
+  document.getElementById('numGroups').value = 4;
+  document.getElementById('gamesPerTeam').value = 2;
 }
 
 // ACTIVE 대회를 빌더로 불러오기 (이어서 작성)
@@ -1633,9 +1633,26 @@ async function saveToSupabase(markEnded){
 // 예선 팀당 최소 경기 수 (확정: 2) — 모든 팀이 최소 2경기, 전 조 공통 X로 정확히 동일
 const MIN_GAMES = 2;
 
+/* 접수 인원 → 표준 포맷 (src/lib/format-routing.js routeFormat 이식 — 규칙은 Dev/format-routing-plan.md)
+   조 수 = floor(N/3) · 플옵 = 조 4개까지 4강, 5개부터 8강 · 팀당 예선 2경기
+   ⚠️ 이 함수를 고치면 src/lib/format-routing.js와 tests/format-routing.test.mjs도 같이 맞춰야 한다 */
+const STD_MIN_TEAMS = 7, STD_MAX_TEAMS = 18, STD_GAMES_PER_TEAM = 2;
+function stdFormat(n){
+  if(!Number.isInteger(n) || n < STD_MIN_TEAMS || n > STD_MAX_TEAMS) return null;
+  const groupCount = Math.floor(n / 3);
+  const playoff = groupCount <= 4 ? 4 : 8;
+  const base = Math.floor(n / groupCount), rem = n % groupCount;
+  const groups = Array.from({ length: groupCount }, (_, i) => base + (i >= groupCount - rem ? 1 : 0));
+  return { teams: n, groups, groupCount, playoff,
+           winners: groupCount, wildcards: playoff - groupCount,
+           gamesPerTeam: STD_GAMES_PER_TEAM, groupGames: n,
+           playoffGames: playoff === 4 ? 3 : 7 };
+}
+
 function groupSizes(n, g){
   const base = Math.floor(n / g), rem = n % g;
-  return Array.from({ length: g }, (_, i) => base + (i < rem ? 1 : 0));
+  // 큰 조(4팀)를 뒤쪽에 둔다 — 문서·안내문 표기(3/3/4)와 화면이 일치하도록 (2026-09-03)
+  return Array.from({ length: g }, (_, i) => base + (i >= g - rem ? 1 : 0));
 }
 
 // 라운드 로빈 라운드 생성 (circle method). 홀수면 bye(null) 포함.
@@ -2040,13 +2057,33 @@ function renderFormatPreview(){
   el.innerHTML += `<span class="pchip">예선 ${totalGames}경기</span>`;
   // 본선 진출 구조 (1위 자동 + 와일드카드)
   const G = S.numGroups;
-  if(G >= 5){
-    el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ 5조↑ 본선 4팀 초과(별도 규칙 필요)</span>`;
+  // R2: 조 1위가 전부 들어가는 가장 작은 브라켓 (조 4개까지 4강, 5개부터 8강)
+  const playoff = G <= 4 ? 4 : 8;
+  const wcM = playoff - G;
+  if(wcM < 0){
+    el.innerHTML += `<span class="pchip" style="border-color:var(--red);color:var(--red)">⚠️ 조 ${G}개는 8강에 다 못 들어갑니다 (최대 8조)</span>`;
   } else {
-    const winN = Math.min(G, 4), wcM = Math.max(0, 4 - G);
-    el.innerHTML += `<span class="pchip fixed">본선 4강 고정 · 1위 ${winN}팀${wcM > 0 ? ` · 와일드카드 ${wcM}자리` : ''}</span>`;
+    el.innerHTML += `<span class="pchip fixed">본선 ${playoff}강 · 조 1위 ${G}팀${wcM > 0 ? ` · 와일드카드 ${wcM}자리` : ' (와일드카드 없음)'}</span>`;
+    el.innerHTML += `<span class="pchip">본선 ${playoff === 4 ? 3 : 7}경기 · 3·4위전 없음</span>`;
+    if(playoff === 8) el.innerHTML += `<span class="pchip" style="border-color:var(--orange);color:var(--orange)">8강 대진은 예선 종료 후 전광판에서 자동 편성</span>`;
+  }
+  // 표준 규칙(7~18팀)과 다른 설정이면 알려준다 — 막지는 않는다
+  const std = stdFormat(S.numTeams);
+  if(!std){
+    el.innerHTML += `<span class="pchip" style="border-color:var(--orange);color:var(--orange)">표준 범위(7~18팀) 밖 — 직접 편성</span>`;
+  } else if(std.groupCount !== S.numGroups || std.gamesPerTeam !== S.gamesPerTeam){
+    el.innerHTML += `<span class="pchip" style="border-color:var(--orange);color:var(--orange)">표준과 다름 (표준: ${std.groups.join('/')} · 팀당 ${std.gamesPerTeam}경기)</span>`;
   }
 }
+// 참가 팀 수를 바꾸면 표준 규칙(7~18팀)의 조 수·팀당 경기 수를 자동으로 채운다.
+// 자동값이 마음에 안 들면 아래 두 칸을 직접 고치면 되고, 그때는 미리보기에 "표준과 다름"이 뜬다.
+document.getElementById('numTeams').addEventListener('input', () => {
+  const f = stdFormat(Math.max(0, +document.getElementById('numTeams').value || 0));
+  if(!f) return;
+  document.getElementById('numGroups').value = f.groupCount;
+  document.getElementById('gamesPerTeam').value = f.gamesPerTeam;
+});
+
 ['numTeams', 'numGroups', 'gamesPerTeam'].forEach(id => document.getElementById(id).addEventListener('input', () => {
   // 포맷이 바뀌면 생성된 예선/순위/본선 무효화 후 미리보기 갱신
   S.groupGames = []; S.manualOrder = {}; S.bracket = null;
@@ -2317,6 +2354,7 @@ function buildAndShow(){
   goStep(4);
 }
 function rebuildBracket(){
+  if(S.numGroups >= 5){ alert('조가 5개 이상인 대회(8강)의 대진은 전광판 Admin이 자동 편성합니다.\n빌더에서는 예선까지만 편성하세요.'); return; }
   if(!confirm('본선 대진을 다시 생성할까요? 입력된 본선 점수는 초기화됩니다.')) return;
   S.bracket = buildBracket();
   renderBuilderBracket();
@@ -2446,6 +2484,17 @@ function goStep(n){
     renderGroupStage();
   }
   if(n === 4){
+    // 8강(조 5개 이상)은 빌더가 대진을 만들지 않는다. 예선 결과를 저장하면
+    // 전광판 Admin이 성적순 시딩으로 8강 → 4강 → 결승을 자동 편성한다.
+    if(S.numGroups >= 5){
+      S.bracket = null;
+      document.getElementById('builderBracket').innerHTML =
+        '<div class="empty-hint">조가 5개 이상이라 본선은 <b>8강</b>입니다.<br>' +
+        '8강 대진은 예선을 모두 마치고 <b>저장</b>한 뒤, 전광판 Admin에서 성적순으로 자동 편성됩니다.<br>' +
+        '(1위 vs 8위 · 2위 vs 7위 · 3위 vs 6위 · 4위 vs 5위)</div>';
+      document.getElementById('bracketNote').textContent = '';
+      return;
+    }
     if(!S.bracket){
       if(!S.groupGames.length || !S.groupGames.every(isDone)){ alert('예선 경기를 모두 완료해야 합니다.'); return goStep(3); }
       S.bracket = buildBracket();
