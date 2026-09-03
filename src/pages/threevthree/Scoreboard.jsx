@@ -150,13 +150,16 @@ const TEAM_COLORS = [
 ];
 
 // 기본 로컬 경기 상태
+// 팀당 작전타임 기본 개수 — 되돌리기(0 → 최대)와 새 경기 리셋이 같은 값을 쓰도록 한 곳에서 판단
+const defaultTimeouts = () => parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1;
+
 const makeDefaultGame = () => ({
     team_a_name: '팀 A',
     team_b_name: '팀 B',
     team_a_score: 0,
     team_b_score: 0,
-    team_a_fouls: 0, team_a_timeouts: parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1,
-    team_b_fouls: 0, team_b_timeouts: parseInt(localStorage.getItem('gritlab_default_timeouts')) || 1,
+    team_a_fouls: 0, team_a_timeouts: defaultTimeouts(),
+    team_b_fouls: 0, team_b_timeouts: defaultTimeouts(),
     team_a_color: TEAM_COLORS.find(c => c.id === 'white').css,
     team_b_color: TEAM_COLORS.find(c => c.id === 'gray').css,
     period: 1,
@@ -639,10 +642,10 @@ export default function ThreeVThreeScoreboard() {
                 </div>
                 {/* T.O OUTSIDE teamBlock */}
                 <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: canControl ? 'pointer' : 'default' }}
-                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_a_timeouts: prev.team_a_timeouts === 0 ? 1 : prev.team_a_timeouts - 1})); }}>
+                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_a_timeouts: prev.team_a_timeouts <= 0 ? defaultTimeouts() : prev.team_a_timeouts - 1})); }}>
                     <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>Timeout</span>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        {[0].map(i => (
+                        {Array.from({ length: Math.max(1, defaultTimeouts()) }, (_, i) => (
                             <div key={i} className={`${styles.timeoutBall} ${i >= game.team_a_timeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
                         ))}
                     </div>
@@ -873,10 +876,10 @@ export default function ThreeVThreeScoreboard() {
                 </div>
                 {/* T.O OUTSIDE teamBlock */}
                 <div className={styles.timeoutWrap} style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', cursor: canControl ? 'pointer' : 'default' }}
-                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_b_timeouts: prev.team_b_timeouts === 0 ? 1 : prev.team_b_timeouts - 1})); }}>
+                     onClick={(e) => { e.stopPropagation(); if(canControl) setGame(prev => ({...prev, team_b_timeouts: prev.team_b_timeouts <= 0 ? defaultTimeouts() : prev.team_b_timeouts - 1})); }}>
                     <span className={styles.foulLabel} style={{ marginTop: 0, marginBottom: 0 }}>Timeout</span>
                     <div style={{ display: 'flex', gap: 8 }}>
-                        {[0].map(i => (
+                        {Array.from({ length: Math.max(1, defaultTimeouts()) }, (_, i) => (
                             <div key={i} className={`${styles.timeoutBall} ${i >= game.team_b_timeouts ? styles.timeoutBallUsed : ''}`}>🏀</div>
                         ))}
                     </div>
