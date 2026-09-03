@@ -77,6 +77,11 @@ test('12~14팀은 4개 조 · 조 1위 4팀이 그대로 4강 (와일드카드 �
     }
 });
 
+test('8강은 15팀부터 — 조가 5개가 되는 최소 인원 (floor(N/3) ≥ 5)', () => {
+    for (let n = MIN_TEAMS; n <= 14; n++) assert.equal(routeFormat(n).playoff, 4, `${n}팀은 4강`);
+    for (let n = 15; n <= MAX_TEAMS; n++) assert.equal(routeFormat(n).playoff, 8, `${n}팀은 8강`);
+});
+
 test('조 수가 5개 이상이면 8강 (조 1위가 4강에 다 못 들어감)', () => {
     for (const n of [15, 16, 17, 18]) {
         const f = routeFormat(n);
@@ -117,11 +122,14 @@ test('본선 경기 수 — 4강 3경기 / 8강 7경기 (3·4위전 없음, R8)'
 test('결정전은 4팀 조에서만 발생 — 3팀 조는 2승 2팀이 구조적으로 불가능 (R6-a)', () => {
     assert.equal(groupCanHaveDecider(3), false);
     assert.equal(groupCanHaveDecider(4), true);
-    // 4팀 조가 있는 대회 = 결정전이 나올 수 있는 대회
+    // 4팀 조가 있는 대회 = 결정전이 나올 수 있는 대회. 사장 확정(2026-09-03): 여덟 구성 전부 적용 (D8)
     const withFour = [];
     for (let n = MIN_TEAMS; n <= MAX_TEAMS; n++)
-        if (routeFormat(n).groups.some(g => g === 4)) withFour.push(n);
+        if (routeFormat(n).groups.some(g => groupCanHaveDecider(g))) withFour.push(n);
     assert.deepEqual(withFour, [7, 8, 10, 11, 13, 14, 16, 17]);
+    // 나머지(9·12·15·18팀)는 전 조가 3팀이라 결정전이 아예 생기지 않는다
+    for (const n of [9, 12, 15, 18])
+        assert.ok(routeFormat(n).groups.every(g => !groupCanHaveDecider(g)), `${n}팀`);
 });
 
 test('범위 밖 접수팀은 null (수동 모드로 넘김 — D6)', () => {
