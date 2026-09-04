@@ -5,6 +5,7 @@ import { ChevronUp, ArrowLeft, ArrowLeftRight, Plus, Save, Trash2, Trophy, Chevr
 import { computePlayoffSeeding, standingRowsFor, advancePairs } from '../../lib/format-routing';
 import styles from './scoreboard.glab.module.css';
 import KeyboardGuide from './KeyboardGuide';
+import BracketCanvas from './BracketCanvas';
 
 // ── 롱프레스 감지 훅 (Scoreboard.jsx와 동일) ──
 const useLongPress = (onLongPress, onClick, ms = 600) => {
@@ -1134,10 +1135,12 @@ export default function ThreeVThreeAdmin() {
         // 예선 전부 종료 + 4강 시딩 완료 → 순위표 대신 본선 브라켓을 보여준다 (사장 요청: 마지막 예선 후 대기 타임에 대진표)
         const groupGamesAll = allMatches.filter(m => m.round?.startsWith('GROUP_') && m.team_a_name && m.team_b_name);
         const groupsAllDone = groupGamesAll.length > 0 && groupGamesAll.every(m => m.status === 'ENDED');
-        const semiMatches = allMatches.filter(m => m.round === 'SEMI' && m.team_a_name && m.team_b_name).sort((a, b) => a.match_order - b.match_order);
-        const finalMatch = allMatches.find(m => m.round === 'FINAL' && m.team_a_name && m.team_b_name);
-        const showBracket = groupsAllDone && semiMatches.length > 0;
-        const qualOf = nm => autoSemiInfo?.qualified?.find(t => t.name === nm); // 진출 근거 배지 (자동시딩 직후에만)
+        // 본선 대진표 — 조가 5개 이상이면 8강, 아니면 4강 (R2)
+        const groupRoundCount = new Set(groupGamesAll.map(m => m.round)).size;
+        const bracketSize = groupRoundCount >= 5 ? 8 : 4;
+        const bracketMatches = allMatches.filter(m =>
+            (m.round === 'QUARTER' || m.round === 'SEMI' || m.round === 'FINAL') && (m.team_a_name || m.team_b_name));
+        const showBracket = groupsAllDone && bracketMatches.length > 0;
 
         return (
             <div style={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column', gap: '1.6vh', padding: '2vh 1.6vw',
@@ -1163,39 +1166,16 @@ export default function ThreeVThreeAdmin() {
 
                 {/* 중앙: 예선 종료 후엔 본선 브라켓, 그 전엔 조별 순위표 */}
                 {showBracket ? (
-                    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '2vh', justifyContent: 'center' }}>
-                        <div style={{ textAlign: 'center', fontSize: '2.2vh', letterSpacing: '.3em', color: C.orange }}>
-                            본선 대진 확정{autoSemiInfo?.needsDraw ? ' · ⚠️ 와일드카드 완전 동률 — 추첨 확인 필요' : ''}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2vh 2vw', flex: 1, minHeight: 0 }}>
-                            {semiMatches.slice(0, 2).map((m, i) => (
-                                <div key={m.id} style={{ border: `2px solid ${C.line}`, background: C.navy2, borderRadius: 12, padding: '3vh 2vw', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '1.8vh', minWidth: 0 }}>
-                                    <div style={{ fontSize: '2vh', letterSpacing: '.24em', color: C.orange }}>SEMIFINAL {i + 1}</div>
-                                    {[[m.team_a_name, m.team_a_score, m.winner === 'A_WIN'], [m.team_b_name, m.team_b_score, m.winner === 'B_WIN']].map(([nm, sc, win], j) => {
-                                        const q = qualOf(nm);
-                                        return (
-                                            <div key={j} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, minWidth: 0 }}>
-                                                <div style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(3vh, 2.6vw, 5.5vh)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: m.status === 'ENDED' && !win ? C.muted : C.cream }}>
-                                                    {nm}
-                                                    {q && <span style={{ fontWeight: 600, fontSize: '1.6vh', color: q.via === 'win' ? C.green : C.orange, marginLeft: 10 }}>
-                                                        {q.group.replace('GROUP_', '')}조 {q.rank}위{q.via === 'wc' ? ' · WC' : ''}
-                                                    </span>}
-                                                </div>
-                                                {m.status === 'ENDED' && <div style={{ fontFamily: pre, fontWeight: 800, fontSize: '4vh', color: win ? C.green : C.muted, fontVariantNumeric: 'tabular-nums' }}>{sc}</div>}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ))}
-                        </div>
-                        <div style={{ border: `2px solid ${C.orange}`, background: C.navy2, borderRadius: 12, padding: '2vh 2vw', textAlign: 'center', flexShrink: 0 }}>
-                            <span style={{ fontSize: '1.8vh', letterSpacing: '.3em', color: C.orange, marginRight: 18 }}>FINAL</span>
-                            <span style={{ fontFamily: pre, fontWeight: 800, fontSize: 'clamp(2.6vh, 2.2vw, 4.5vh)' }}>
-                                {finalMatch
-                                    ? <>{finalMatch.team_a_name} <span style={{ color: C.muted, fontWeight: 400 }}>vs</span> {finalMatch.team_b_name}</>
-                                    : <span style={{ color: C.muted }}>4강 승자 vs 4강 승자</span>}
-                            </span>
-                        </div>
+                    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                  justifyContent: 'center', gap: '1.2vh' }}>
+                        {autoSemiInfo?.needsDraw && (
+                            <div style={{ fontSize: '2vh', letterSpacing: '.2em', color: C.orange, flexShrink: 0 }}>
+                                ⚠️ 와일드카드 완전 동률 — 추첨 확인 필요
+                            </div>
+                        )}
+                        {/* 대진표는 캔버스로 그린다 — 화면과 PNG 저장이 같은 그림 */}
+                        <BracketCanvas matches={bracketMatches} size={bracketSize}
+                            style={{ height: '100%', width: 'auto', maxWidth: '100%', borderRadius: 8 }} />
                     </div>
                 ) : groupStandings.length > 0 ? (
                     (() => {
