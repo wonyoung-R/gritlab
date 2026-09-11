@@ -855,10 +855,12 @@
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">
     <span id="glBracketTitle" style="font-family:var(--display);letter-spacing:.12em;color:var(--cream);font-size:15px"></span>
     <button class="btn btn-sm ghost" onclick="glToggleScores()" id="glScoreBtn">점수 숨기기</button>
+    <button class="btn btn-sm btn-orange" id="glShareBtn" style="display:none" onclick="glShareStory()">📲 스토리로 공유</button>
     <button class="btn btn-sm btn-green" onclick="glSaveBracketPng()">PNG 저장</button>
     <button class="btn btn-sm ghost" onclick="closeGlBracket()">닫기 (ESC)</button>
   </div>
-  <canvas id="glBracketCanvas" style="max-width:96vw;max-height:78vh;width:auto;height:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)"></canvas>
+  <canvas id="glBracketCanvas" style="max-width:96vw;max-height:74vh;width:auto;height:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)"></canvas>
+  <div id="glShareDiag" style="font-size:11px;color:#8ea0c2;letter-spacing:.04em;text-align:center;max-width:90vw"></div>
 </div>
 
 <!-- 커스텀 확인 입력창 — window.prompt() 대체 (설치형 PWA 창에서 prompt() 미지원 대응) -->
@@ -960,6 +962,7 @@ async function openGlBracket(){
   try {
     if(!GL_BRACKET) GL_BRACKET = await import('/format-bracket.js');
     await glDraw();
+    glUpdateShareUi();
   } catch (e) {
     document.getElementById('glBracketTitle').textContent = '대진표를 그리지 못했습니다: ' + e.message;
   }
@@ -982,6 +985,52 @@ async function glSaveBracketPng(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+/* 인스타그램 스토리 공유 — 운영체제 공유 시트를 띄운다.
+   인스타그램에 직접 게시하는 API는 비즈니스 계정 + Meta 앱 심사가 필요하고,
+   그렇게 해도 스토리를 꾸밀 수 없어 채택하지 않았다. 공유 시트는 조건이 없고
+   스토리 편집 화면으로 들어가 스티커·문구를 얹을 수 있다.
+
+   ⚠️ files와 함께 text/url을 넘기면 iOS가 이미지 대신 텍스트를 공유해버린다.
+      인스타그램이 공유 대상으로 뜨게 하려면 files만 넘겨야 한다. */
+async function glShareStory(){
+  const cv = document.getElementById('glBracketCanvas');
+  const diag = document.getElementById('glShareDiag');
+  const blob = await new Promise(r => cv.toBlob(r, 'image/png', 0.95));
+  if(!blob){ alert('이미지를 만들지 못했습니다.'); return; }
+
+  const d = glBracketData();
+  const file = new File([blob], `gritlab_${d.size}강_대진표.png`, { type: 'image/png' });
+
+  if(!(navigator.canShare && navigator.canShare({ files: [file] }))){
+    diag.textContent = '이 브라우저는 이미지 공유를 지원하지 않습니다 — 휴대폰(Safari·Chrome)에서 열어 주세요. PC는 [PNG 저장]을 쓰세요.';
+    return;
+  }
+  try {
+    await navigator.share({ files: [file] });
+    diag.textContent = '공유 창을 띄웠습니다.';
+  } catch (e) {
+    if(e.name === 'AbortError'){ diag.textContent = '공유를 취소했습니다.'; return; }
+    diag.textContent = '공유 실패: ' + (e.message || e.name);
+  }
+}
+
+/* 공유가 가능한 환경에서만 버튼을 보인다. 테스트를 위해 판정 근거도 함께 표시 */
+function glUpdateShareUi(){
+  const btn = document.getElementById('glShareBtn');
+  const diag = document.getElementById('glShareDiag');
+  const hasShare = typeof navigator.share === 'function';
+  const hasCan = typeof navigator.canShare === 'function';
+  let fileOk = false;
+  if(hasCan){
+    try { fileOk = navigator.canShare({ files: [new File([new Blob(['x'])], 't.png', { type: 'image/png' })] }); }
+    catch { fileOk = false; }
+  }
+  btn.style.display = (hasShare && fileOk) ? '' : 'none';
+  diag.textContent = (hasShare && fileOk)
+    ? ''
+    : `공유 불가 — share:${hasShare ? 'O' : 'X'} / canShare:${hasCan ? 'O' : 'X'} / 파일공유:${fileOk ? 'O' : 'X'} · https가 아니거나 PC 브라우저면 꺼집니다`;
+}
+
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeGlBracket(); });
 
 /* ===========================================================
